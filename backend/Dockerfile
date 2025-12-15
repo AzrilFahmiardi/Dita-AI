@@ -1,20 +1,12 @@
 # =============================================================================
-# Dita AI Assistant - Backend Dockerfile (Multi-stage)
-# Python 3.13 + FastAPI + LangChain + Elasticsearch
+# Dita AI Assistant - Backend Dockerfile
+# FastAPI WebSocket Server
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Builder - Install dependencies with uv
+# Stage 1: Builder - Install dependencies
 # -----------------------------------------------------------------------------
 FROM python:3.13-slim AS builder
-
-# Install system dependencies for building
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    portaudio19-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
 RUN pip install --no-cache-dir uv
@@ -23,50 +15,37 @@ RUN pip install --no-cache-dir uv
 WORKDIR /app
 
 # Copy dependency files
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 
-# Install Python dependencies with uv (creates .venv)
-# Increase timeout for large packages (tokenizers, torch, transformers)
-ENV UV_HTTP_TIMEOUT=600
-ENV UV_CONCURRENT_DOWNLOADS=1
-ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-RUN uv sync --no-dev --frozen || uv sync --no-dev --frozen
+# Install Python dependencies
+RUN uv sync --no-dev
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Slim production image
 # -----------------------------------------------------------------------------
 FROM python:3.13-slim
 
-# Install runtime system dependencies
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
-    # Audio libraries for PyAudio
-    portaudio19-dev \
-    libportaudio2 \
-    alsa-utils \
-    # Network tools for health checks
     curl \
-    # Other utilities
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
+# Create non-root user
 RUN useradd -m -u 1000 dita && \
-    mkdir -p /app /app/data /app/models && \
+    mkdir -p /app && \
     chown -R dita:dita /app
 
 # Set working directory
 WORKDIR /app
 
-# Copy virtual environment from builder stage
+# Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY --chown=dita:dita . .
 
-# Ensure models directory exists and has correct permissions
-RUN chown -R dita:dita /app/models /app/data
-
-# Set Python path and use venv
+# Set environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH="/app:$PYTHONPATH" \
@@ -75,17 +54,15 @@ ENV PYTHONUNBUFFERED=1 \
 # Switch to non-root user
 USER dita
 
-# Expose FastAPI port
+# Expose port
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command: Run FastAPI backend
-CMD ["python", "backend/main.py"]
-
-# Alternative commands (can override in docker-compose.yml):
+# Run FastAPI server
+CMD ["python", "main.py"]
 # - Terminal mode with wake word: ["python", "main.py"]
 # - Streamlit demo: ["streamlit", "run", "streamlit_demo.py"]
 # - Custom command: specify in docker-compose.yml command: override
