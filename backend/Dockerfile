@@ -17,8 +17,8 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml ./
 
-# Install Python dependencies directly without building wheel
-RUN uv pip install --system --no-cache fastapi uvicorn[standard] python-multipart
+# Install Python dependencies from pyproject.toml
+RUN uv pip install --system --no-cache -e .
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Slim production image

@@ -479,8 +479,24 @@ async def list_contacts(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all WhatsApp contacts"""
-    contacts = WhatsAppService.get_all_contacts(db, is_active, skip, limit)
+    """Get user's assigned WhatsApp contacts only"""
+    # Get user_contacts (assignment records) for this user
+    user_contacts = WhatsAppService.get_user_contacts(db, current_user.id)
+    
+    print(f"[DEBUG] User {current_user.username} has {len(user_contacts)} user_contact records")
+    
+    # Extract WhatsAppContact objects from UserContact relationships
+    # and filter by can_send permission
+    contacts = []
+    for uc in user_contacts:
+        print(f"[DEBUG] UserContact: contact_id={uc.contact_id}, can_send={uc.can_send}")
+        if uc.can_send:  # Only include contacts user can send to
+            contact = uc.contact  # Get WhatsAppContact from relationship
+            print(f"[DEBUG] Contact: id={contact.id}, name={contact.name}, active={contact.is_active}")
+            if is_active is None or contact.is_active == is_active:
+                contacts.append(contact)
+    
+    print(f"[DEBUG] Returning {len(contacts)} contacts")
     return contacts
 
 

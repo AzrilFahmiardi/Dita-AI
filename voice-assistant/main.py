@@ -3,7 +3,8 @@ from stt import transcribe_audio
 from rag import DitaRAGAssistant
 from vad_recorder import VoiceActivityRecorder
 from tts import DitaTTS
-from config_manager import get_vad_config, get_tts_config
+from config_manager import get_vad_config, get_tts_config, get_config
+from auth import authenticate_terminal_user, DitaAuthClient
 import sys
 import os
 
@@ -16,7 +17,27 @@ except ImportError:
     broadcast_client = None
 
 print("Initializing Dita...")
-dita_rag = DitaRAGAssistant()
+
+# Initialize authentication
+auth_config = get_config().get('auth', {})
+auth_required = auth_config.get('required', True)
+backend_url = auth_config.get('backend_url', 'http://localhost:8000')
+
+auth_client = None
+if auth_required:
+    print("\nAuthentication required for Dita Voice Assistant")
+    auth_client = authenticate_terminal_user(backend_url)
+    
+    if not auth_client:
+        print("\n✗ Authentication failed. Exiting...")
+        sys.exit(1)
+    
+    print(f"\nWelcome, {auth_client.user_context['full_name']}!")
+    print(f"Role: {auth_client.user_context['role']['name']}")
+else:
+    print("\n⚠ Authentication disabled (running in demo mode)")
+
+dita_rag = DitaRAGAssistant(auth_client=auth_client)
 
 vad_config = get_vad_config()
 use_vad = vad_config.get('enabled', False)
@@ -34,6 +55,13 @@ if use_tts:
 
 def run_rag(query):
     """Process query using RAG assistant"""
+    # Check token validity before processing
+    if auth_client and not auth_client.validate_token():
+        print("\n✗ Session expired. Please restart Dita and login again.")
+        broadcast_client.update_state("error")
+        broadcast_client.update_response("Session expired. Please restart and login again.")
+        return {"answer": "Session expired", "status": "error"}
+    
     response = dita_rag.ask(query)
     print(f"\nDita: {response['answer']}")
     print(f"Response time: {response['response_time']:.3f}s")
@@ -103,6 +131,11 @@ def main():
             # State: Processing with RAG
             broadcast_client.update_state("processing")
             run_rag(user_text)
+    except KeyboardInterrupt:
+        print("\n\nShutting down Dita...")
+        if auth_client:
+            print("Logging out...")
+            auth_client.logout()
     finally:
         if use_vad:
             recorder.close()

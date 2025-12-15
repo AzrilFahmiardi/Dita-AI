@@ -4,6 +4,12 @@ api_keys:
   gemini: ${GEMINI_API_KEY}
   elasticsearch: ${ES_PASSWORD}
 
+# Authentication Configuration
+auth:
+  backend_url: "http://localhost:8000"
+  required: true  # Set to false to disable authentication
+  token_refresh_threshold_minutes: 5  # Refresh token if expires in less than this
+
 # Elasticsearch Configuration
 elasticsearch:
   host: "10.17.5.106"
@@ -32,7 +38,7 @@ llm:
   primary:
     provider: "google_gemini"
     api_key_name: "GEMINI_API_KEY" 
-    model_name: "gemini-2.5-flash"
+    model_name: "gemini-2.5-flash-lite"
     temperature: 0.1
     max_tokens: 2048
     timeout: 30

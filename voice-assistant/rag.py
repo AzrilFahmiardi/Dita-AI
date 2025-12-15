@@ -85,10 +85,35 @@ class LangChainConversationMemory:
 
 
 class DitaRAGAssistant:
-    def __init__(self):
+    def __init__(self, auth_client=None, user_context=None, access_token=None):
         print("\n" + "="*60)
         print("Initializing Dita RAG Assistant with Agent System")
         print("="*60)
+        
+        # Store authentication info
+        self.auth_client = auth_client
+        self.user_context = user_context
+        self.access_token = access_token
+        
+        # If user_context provided directly, use it
+        if user_context:
+            self.user_id = user_context['id']
+            self.user_role = user_context['role']
+            print(f"✓ User context loaded: {user_context['username']} ({user_context['role']['name']})")
+        elif auth_client:
+            user_info = auth_client.get_user_context()
+            self.user_context = user_info
+            self.user_id = user_info['id']
+            self.user_role = user_info['role']
+            self.access_token = auth_client.access_token
+            print(f"✓ User context from auth_client: {user_info['username']} ({user_info['role']['name']})")
+        else:
+            # No authentication (legacy mode)
+            self.user_context = None
+            self.user_id = None
+            self.user_role = None
+            self.access_token = None
+            print("⚠ Running without authentication")
         
         # Setup components
         self._setup_elasticsearch()
@@ -365,6 +390,21 @@ class DitaRAGAssistant:
             """
             print(f"[TOOL] send_to_whatsapp called")
             
+            # Check authentication
+            if self.auth_client and not self.auth_client.is_authenticated():
+                return json.dumps({
+                    "status": "error",
+                    "message": "Authentication required to send WhatsApp messages"
+                })
+            
+            # Check permission
+            if self.auth_client and not self.auth_client.has_permission("send_whatsapp"):
+                user_role = self.auth_client.user_context.get('role', {}).get('name', 'Unknown')
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Permission denied: {user_role} role cannot send WhatsApp messages"
+                })
+            
             if not self.fonnte_client:
                 return json.dumps({
                     "status": "error",
@@ -378,6 +418,19 @@ class DitaRAGAssistant:
                     "status": "error",
                     "message": "Target phone number not configured in .env"
                 })
+            
+            # Get available contacts for user (if authenticated)
+            if self.auth_client:
+                available_contacts = self.auth_client.get_available_contacts()
+                if not available_contacts:
+                    return json.dumps({
+                        "status": "error",
+                        "message": "No WhatsApp contacts assigned to your account. Contact administrator."
+                    })
+                
+                # Use first available contact's phone number
+                target_number = available_contacts[0].get('phone_number')
+                print(f"[TOOL] Sending to assigned contact: {available_contacts[0].get('name')} ({target_number})")
             
             # Build message from conversation history
             conversation_context = self.memory.get_conversation_context()
@@ -408,7 +461,16 @@ class DitaRAGAssistant:
                 })
             
             message_parts.append("\n---")
-            message_parts.append("Dikirim oleh Dita AI Assistant")
+            
+            # Add sender info if authenticated
+            if self.auth_client:
+                user_info = self.auth_client.get_user_context()
+                sender_name = user_info.get('full_name', user_info.get('username'))
+                sender_role = user_info.get('role', {}).get('name', '')
+                message_parts.append(f"Dikirim oleh: {sender_name} ({sender_role})")
+                message_parts.append("via Dita AI Assistant")
+            else:
+                message_parts.append("Dikirim oleh Dita AI Assistant")
             
             full_message = "\n".join(message_parts)
             
@@ -418,6 +480,20 @@ class DitaRAGAssistant:
                 
                 if result['status'] == 'success':
                     print(f"[TOOL] Message sent to {target_number}")
+                    
+                    # Log action to audit if authenticated
+                    if self.auth_client:
+                        self.auth_client.log_action(
+                            action="send_whatsapp",
+                            resource="whatsapp",
+                            details={
+                                "phone_number": target_number,
+                                "message_length": len(full_message),
+                                "has_context": bool(self.context_answer),
+                                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                        )
+                    
                     return json.dumps({
                         "status": "success",
                         "message": f"Rangkuman berhasil dikirim ke WhatsApp {target_number}",
