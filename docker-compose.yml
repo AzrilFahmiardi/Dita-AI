@@ -1,0 +1,54 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dita-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PORCUPINE_ACCESS_KEY=${PORCUPINE_ACCESS_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ES_PASSWORD=${ES_PASSWORD}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gc-tts-credential.json
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/models:/app/models:ro
+    networks:
+      - dita-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_WEBSOCKET_URL=${VITE_WEBSOCKET_URL:-ws://localhost:8000/ws/dashboard}
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: dita-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - dita-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  dita-network:
+    driver: bridge
