@@ -74,17 +74,17 @@ class DitaAuthClient:
             
             elif response.status_code == 401:
                 print("✗ Authentication failed: Invalid credentials")
-                return None
+                raise AuthenticationError("Invalid credentials")
             elif response.status_code == 422:
                 print("✗ Authentication failed: Invalid request format")
-                return None
+                raise AuthenticationError("Invalid request format")
             else:
                 print(f"✗ Authentication failed: HTTP {response.status_code}")
-                return None
+                raise AuthenticationError(f"HTTP {response.status_code}")
         
         except requests.RequestException as e:
             print(f"✗ Cannot connect to backend API: {e}")
-            return None
+            raise AuthenticationError(f"Cannot connect to backend: {e}")
     
     def _get_user_profile(self) -> Dict[str, Any]:
         """

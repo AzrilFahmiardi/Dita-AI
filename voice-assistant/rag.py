@@ -127,6 +127,10 @@ class DitaRAGAssistant:
         self.last_query_time = 0
         self.last_response = ""
         
+        # WhatsApp content storage
+        self.saved_recommendation = ""  # Saved content for WhatsApp sending
+        self.saved_news_summary = ""    # Saved news summary
+        
         # Track index untuk WhatsApp message
         self.last_news_fetch_index = -1  
         self.context_answer = ""  
@@ -215,6 +219,42 @@ class DitaRAGAssistant:
     → Jawab sesuai konteks percakapan dan berita
     → Tetap faktual dan natural
 
+    INSTRUKSI KHUSUS - SAVE CONTENT FOR WHATSAPP:
+    
+    Setelah memberikan REKOMENDASI, SARAN, atau ANALISIS penting:
+    - WAJIB panggil tool save_recommendation untuk menyimpan konten
+    - Parameter content: isi rekomendasi/analisis yang baru saja kamu generate
+    - Parameter content_type: "recommendation" untuk saran, "summary" untuk rangkuman, "analysis" untuk analisis
+    
+    Kapan WAJIB save:
+    - User minta rekomendasi/saran → SAVE DUA KALI:
+      1. save_recommendation(content="[ringkasan berita]", content_type="summary")
+      2. save_recommendation(content="[rekomendasi lengkap]", content_type="recommendation")
+    - User minta rangkuman berita → save_recommendation(content="...", content_type="summary")
+    - User minta analisis situasi → save_recommendation(content="...", content_type="analysis")
+    
+    Mengapa save dua kali untuk rekomendasi?
+    - WhatsApp message perlu konteks berita (summary) DAN rekomendasi
+    - Jadi save summary dulu, baru save recommendation
+    
+    Tool save_recommendation akan menyimpan konten sehingga ketika user minta "kirim ke WhatsApp",
+    konten yang tersimpan inilah yang akan dikirim (bukan menebak dari conversation).
+
+    INSTRUKSI KHUSUS - WHATSAPP CONTACT SELECTION:
+    
+    Jika user meminta kirim ke WhatsApp:
+    - Jika user TIDAK SEBUTKAN NAMA KONTAK: Panggil tool dengan parameter kosong → tool akan tampilkan daftar kontak
+    - Jika user SEBUTKAN NAMA KONTAK: Ekstrak nama kontaknya dan panggil tool dengan parameter nama
+      Contoh: "kirim ke Grup Keluarga" → contact_name="Grup Keluarga"
+              "kirim ke semua kontak" → contact_name="semua"
+              "kirim ke Emergency Contact dan Tim Operasional" → panggil tool dua kali terpisah
+    - Jika tool return "awaiting_selection": Tunjukkan daftar ke user dan tunggu pilihan
+    - Jika tool return "error": SAMPAIKAN ERROR MESSAGE PERSIS DARI TOOL, JANGAN INTERPRETASI ULANG
+      * Tool sudah memberikan error message yang tepat (misal: "Maaf, Anda (...) tidak memiliki akses...")
+      * JANGAN ubah "Anda" menjadi "saya" atau "akun saya"
+      * Sampaikan PERSIS seperti yang tool berikan
+    - Jika tool return "success": Konfirmasi ke user bahwa pesan berhasil dikirim
+
     ATURAN KETAT:
     - Jika berita TIDAK RELEVAN dengan pertanyaan: "Maaf, informasi tentang [topik] belum tersedia dalam berita yang saya akses"
     - Jika pertanyaan tentang pejabat tapi berita tidak menyebut tindakan pejabat: WAJIB bilang "Belum ada informasi"
@@ -225,7 +265,7 @@ class DitaRAGAssistant:
             )
                 
         except Exception as e:
-            print(f"❌ Language model setup failed: {e}")
+            print(f"Language model setup failed: {e}")
             raise
     
     def _create_llm(self, llm_config: Dict[str, Any]):
@@ -378,17 +418,80 @@ class DitaRAGAssistant:
             return json.dumps(result, ensure_ascii=False)
         
         @tool
-        def send_to_whatsapp() -> str:
+        def save_recommendation(content: str, content_type: str = "recommendation") -> str:
             """
-            Send summary of current conversation (news articles + recommendations) to WhatsApp.
-            Call this tool when user requests to send/share information to WhatsApp.
+            Save important content (recommendation, summary, analysis) for later sending to WhatsApp.
+            Call this tool when you generate important content that user might want to share.
             
-            Trigger phrases: "kirim ke whatsapp", "send to wa", "share ke whatsapp", "kirim rangkuman"
+            Args:
+                content: The content to save (recommendation, summary, analysis, etc.)
+                content_type: Type of content - "recommendation", "summary", "analysis", or "news"
+            
+            Use cases:
+                - After generating recommendation: save_recommendation(content="...", content_type="recommendation")
+                - After summarizing news: save_recommendation(content="...", content_type="summary")
+                - After analysis: save_recommendation(content="...", content_type="analysis")
+            
+            IMPORTANT FOR RECOMMENDATIONS:
+                When user asks for recommendation based on news:
+                1. FIRST save news context: save_recommendation(content="[ringkasan berita]", content_type="summary")
+                2. THEN save recommendation: save_recommendation(content="[rekomendasi]", content_type="recommendation")
+                
+                This ensures WhatsApp message includes both context and recommendation.
             
             Returns:
-                JSON string with send status
+                JSON string with save status
             """
-            print(f"[TOOL] send_to_whatsapp called")
+            print(f"[TOOL] save_recommendation called: type='{content_type}', length={len(content)}")
+            
+            if not content or content.strip() == "":
+                return json.dumps({
+                    "status": "error",
+                    "message": "Cannot save empty content"
+                })
+            
+            # Save based on content type
+            if content_type.lower() in ["recommendation", "rekomendasi", "saran"]:
+                self.saved_recommendation = content
+                print(f"[TOOL] ✓ Saved recommendation ({len(content)} chars)")
+            elif content_type.lower() in ["summary", "rangkuman", "ringkasan", "news", "berita"]:
+                self.saved_news_summary = content
+                print(f"[TOOL] ✓ Saved news summary ({len(content)} chars)")
+            elif content_type.lower() in ["analysis", "analisis"]:
+                self.saved_recommendation = content  # Treat analysis like recommendation
+                print(f"[TOOL] ✓ Saved analysis ({len(content)} chars)")
+            else:
+                # Default: save as recommendation
+                self.saved_recommendation = content
+                print(f"[TOOL] ✓ Saved as recommendation ({len(content)} chars)")
+            
+            return json.dumps({
+                "status": "success",
+                "message": f"Content saved successfully ({content_type})",
+                "content_length": len(content)
+            })
+        
+        @tool
+        def send_to_whatsapp(contact_name: str = "") -> str:
+            """
+            Send summary of current conversation (news articles + recommendations) to WhatsApp contact(s).
+            Call this tool when user requests to send/share information to WhatsApp.
+            
+            Args:
+                contact_name: Optional. Specify which contact(s) to send to.
+                            - "" (empty) → will list available contacts for user to choose
+                            - "Grup Keluarga" → send to specific contact by name (fuzzy match)
+                            - "all" or "semua" → send to all assigned contacts
+            
+            Trigger phrases: 
+                - "kirim ke whatsapp" → will list contacts
+                - "kirim ke Grup Keluarga" → send to that specific contact
+                - "kirim ke semua kontak" → send to all contacts
+            
+            Returns:
+                JSON string with send status and results
+            """
+            print(f"[TOOL] send_to_whatsapp called with contact_name: '{contact_name}'")
             
             # Check authentication
             if self.auth_client and not self.auth_client.is_authenticated():
@@ -399,10 +502,11 @@ class DitaRAGAssistant:
             
             # Check permission
             if self.auth_client and not self.auth_client.has_permission("send_whatsapp"):
+                user_name = self.auth_client.user_context.get('full_name', self.auth_client.user_context.get('username', 'User'))
                 user_role = self.auth_client.user_context.get('role', {}).get('name', 'Unknown')
                 return json.dumps({
                     "status": "error",
-                    "message": f"Permission denied: {user_role} role cannot send WhatsApp messages"
+                    "message": f"Maaf, Anda ({user_name}) dengan role {user_role} tidak memiliki akses untuk mengirim pesan WhatsApp"
                 })
             
             if not self.fonnte_client:
@@ -411,15 +515,7 @@ class DitaRAGAssistant:
                     "message": "WhatsApp service not configured"
                 })
             
-            # Get target phone number from environment
-            target_number = os.getenv('FONNTE_TARGET_NUMBER')
-            if not target_number:
-                return json.dumps({
-                    "status": "error",
-                    "message": "Target phone number not configured in .env"
-                })
-            
-            # Get available contacts for user (if authenticated)
+            # Get available contacts for user (authenticated)
             if self.auth_client:
                 available_contacts = self.auth_client.get_available_contacts()
                 if not available_contacts:
@@ -427,37 +523,106 @@ class DitaRAGAssistant:
                         "status": "error",
                         "message": "No WhatsApp contacts assigned to your account. Contact administrator."
                     })
+            else:
+                # Fallback to env variable if no auth (legacy mode)
+                target_number = os.getenv('FONNTE_TARGET_NUMBER')
+                if not target_number:
+                    return json.dumps({
+                        "status": "error",
+                        "message": "Target phone number not configured"
+                    })
+                available_contacts = [{"id": 0, "name": "Default Contact", "phone_number": target_number}]
+            
+            # ====================================================================================
+            # CONTACT SELECTION LOGIC
+            # ====================================================================================
+            
+            target_contacts = []
+            
+            # Case 1: No contact specified - ASK USER TO CHOOSE
+            if not contact_name or contact_name.strip() == "":
+                contact_list_str = "\n".join([
+                    f"{i+1}. {c['name']} ({c['phone_number']})" 
+                    for i, c in enumerate(available_contacts)
+                ])
                 
-                # Use first available contact's phone number
-                target_number = available_contacts[0].get('phone_number')
-                print(f"[TOOL] Sending to assigned contact: {available_contacts[0].get('name')} ({target_number})")
-            
-            # Build message from conversation history
-            conversation_context = self.memory.get_conversation_context()
-            
-            if not conversation_context:
                 return json.dumps({
-                    "status": "error",
-                    "message": "No conversation to send"
+                    "status": "awaiting_selection",
+                    "message": f"Anda memiliki {len(available_contacts)} kontak WhatsApp yang tersedia:\n\n{contact_list_str}\n\nMau kirim ke kontak mana? Sebutkan nama kontaknya, atau bilang 'semua' untuk kirim ke semua kontak.",
+                    "available_contacts": [{"name": c['name'], "phone": c['phone_number']} for c in available_contacts]
                 })
             
-            # Build message: Context + Recommendation
+            # Case 2: Send to ALL contacts
+            if contact_name.lower().strip() in ["all", "semua", "semua kontak", "all contacts", "semuanya", "ke semua"]:
+                target_contacts = available_contacts
+                print(f"[TOOL] User requested to send to ALL {len(target_contacts)} contacts")
+            
+            # Case 3: Search for specific contact by name (FUZZY MATCH)
+            else:
+                contact_name_lower = contact_name.lower().strip()
+                
+                for contact in available_contacts:
+                    contact_name_in_db = contact['name'].lower()
+                    
+                    # Fuzzy matching: check if user input is substring of contact name or vice versa
+                    if (contact_name_lower in contact_name_in_db or 
+                        contact_name_in_db in contact_name_lower or
+                        contact_name_lower == contact_name_in_db):
+                        target_contacts.append(contact)
+                
+                # If no match found, show available contacts
+                if not target_contacts:
+                    available_names = ", ".join([f"'{c['name']}'" for c in available_contacts])
+                    return json.dumps({
+                        "status": "error",
+                        "message": f"Kontak '{contact_name}' tidak ditemukan dalam daftar Anda.\n\nKontak yang tersedia: {available_names}\n\nSilakan sebutkan nama kontak yang benar atau bilang 'semua' untuk kirim ke semua kontak."
+                    })
+                
+                print(f"[TOOL] Found {len(target_contacts)} matching contact(s) for '{contact_name}': {[c['name'] for c in target_contacts]}")
+            
+            # ====================================================================================
+            # BUILD MESSAGE FROM SAVED CONTENT (PRIORITY) OR CONVERSATION
+            # ====================================================================================
+            
             message_parts = []
             
-            # Ambil jawaban setelah search_news/use_cached_context terakhir
-            if self.last_news_fetch_index >= 0 and self.context_answer:
-                message_parts.append("KONTEKS BERITA:")
-                message_parts.append(self.context_answer)
+            # PRIORITY 1: Use explicitly saved content (from save_recommendation tool)
+            if self.saved_recommendation or self.saved_news_summary:
+                print("[TOOL] Using saved content for WhatsApp message")
+                
+                if self.saved_news_summary:
+                    message_parts.append("KONTEKS BERITA:")
+                    message_parts.append(self.saved_news_summary)
+                
+                if self.saved_recommendation:
+                    message_parts.append("\n\nREKOMENDASI:")
+                    message_parts.append(self.saved_recommendation)
             
-            # Add Dita's latest response (recommendation/analysis)
-            if self.last_response and self.last_response != self.context_answer:
-                message_parts.append("\n\nREKOMENDASI DITA:")
-                message_parts.append(self.last_response)
+            # PRIORITY 2: Fallback to conversation context (legacy behavior)
+            else:
+                print("[TOOL] No saved content, using conversation context")
+                conversation_context = self.memory.get_conversation_context()
+                
+                if not conversation_context:
+                    return json.dumps({
+                        "status": "error",
+                        "message": "Tidak ada konten untuk dikirim. Silakan minta saya membuat rekomendasi atau rangkuman terlebih dahulu."
+                    })
+                
+                # Ambil jawaban setelah search_news/use_cached_context terakhir
+                if self.last_news_fetch_index >= 0 and self.context_answer:
+                    message_parts.append("KONTEKS BERITA:")
+                    message_parts.append(self.context_answer)
+                
+                # Add Dita's latest response (recommendation/analysis)
+                if self.last_response and self.last_response != self.context_answer:
+                    message_parts.append("\n\nREKOMENDASI DITA:")
+                    message_parts.append(self.last_response)
             
             if not message_parts:
                 return json.dumps({
                     "status": "error",
-                    "message": "No content to send"
+                    "message": "Tidak ada konten untuk dikirim. Silakan minta saya membuat rekomendasi atau rangkuman terlebih dahulu."
                 })
             
             message_parts.append("\n---")
@@ -474,47 +639,97 @@ class DitaRAGAssistant:
             
             full_message = "\n".join(message_parts)
             
-            # Send via Fonnte
-            try:
-                result = self.fonnte_client.send_message(target_number, full_message)
+            # ====================================================================================
+            # SEND TO TARGET CONTACT(S)
+            # ====================================================================================
+            
+            send_results = []
+            send_failures = []
+            
+            for idx, contact in enumerate(target_contacts):
+                contact_name = contact['name']
+                phone_number = contact['phone_number']
                 
-                if result['status'] == 'success':
-                    print(f"[TOOL] Message sent to {target_number}")
+                try:
+                    print(f"[TOOL] Sending to {contact_name} ({phone_number})...")
+                    result = self.fonnte_client.send_message(phone_number, full_message)
                     
-                    # Log action to audit if authenticated
-                    if self.auth_client:
-                        self.auth_client.log_action(
-                            action="send_whatsapp",
-                            resource="whatsapp",
-                            details={
-                                "phone_number": target_number,
-                                "message_length": len(full_message),
-                                "has_context": bool(self.context_answer),
-                                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                            }
-                        )
-                    
-                    return json.dumps({
-                        "status": "success",
-                        "message": f"Rangkuman berhasil dikirim ke WhatsApp {target_number}",
-                        "phone_number": result.get('phone_number', target_number)
-                    }, ensure_ascii=False)
-                else:
-                    print(f"[TOOL] Failed to send: {result.get('message')}")
-                    return json.dumps({
-                        "status": "error",
-                        "message": result.get('message', 'Failed to send')
+                    if result['status'] == 'success':
+                        send_results.append({
+                            "name": contact_name,
+                            "phone": phone_number,
+                            "status": "success"
+                        })
+                        print(f"[TOOL] ✓ Successfully sent to {contact_name}")
+                    else:
+                        send_failures.append({
+                            "name": contact_name,
+                            "phone": phone_number,
+                            "error": result.get('message', 'Unknown error')
+                        })
+                        print(f"[TOOL] ✗ Failed to send to {contact_name}: {result.get('message')}")
+                
+                except Exception as e:
+                    send_failures.append({
+                        "name": contact_name,
+                        "phone": phone_number,
+                        "error": str(e)
                     })
-                    
-            except Exception as e:
-                print(f"[TOOL] send_to_whatsapp error: {e}")
+                    print(f"[TOOL] ✗ Exception sending to {contact_name}: {e}")
+                
+                # Add delay between sends to avoid being flagged as bot/spam
+                # Skip delay for last contact
+                if idx < len(target_contacts) - 1:
+                    delay_seconds = 2  # 2 seconds delay between sends
+                    print(f"[TOOL] ⏳ Waiting {delay_seconds}s before next send...")
+                    time.sleep(delay_seconds)
+            
+            # Log audit if authenticated (log all attempts)
+            if self.auth_client:
+                self.auth_client.log_action(
+                    action="send_whatsapp",
+                    resource="whatsapp",
+                    details={
+                        "contacts_sent": [r['name'] for r in send_results],
+                        "contacts_failed": [f['name'] for f in send_failures],
+                        "message_length": len(full_message),
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                )
+            
+            # Build response message
+            if send_results and not send_failures:
+                # All sent successfully
+                contact_names = "\n".join([f"✓ {r['name']} ({r['phone']})" for r in send_results])
+                return json.dumps({
+                    "status": "success",
+                    "message": f"Berhasil dikirim ke {len(send_results)} kontak:\n{contact_names}",
+                    "sent_to": send_results,
+                    "message_length": len(full_message)
+                }, ensure_ascii=False)
+            
+            elif send_results and send_failures:
+                # Partial success
+                success_names = "\n".join([f"✓ {r['name']}" for r in send_results])
+                failed_names = "\n".join([f"✗ {f['name']}: {f['error']}" for f in send_failures])
+                return json.dumps({
+                    "status": "partial_success",
+                    "message": f"Berhasil dikirim ke {len(send_results)} dari {len(target_contacts)} kontak:\n\nBerhasil:\n{success_names}\n\nGagal:\n{failed_names}",
+                    "sent_to": send_results,
+                    "failed": send_failures
+                }, ensure_ascii=False)
+            
+            else:
+                # All failed
+                failed_names = "\n".join([f"✗ {f['name']}: {f['error']}" for f in send_failures])
                 return json.dumps({
                     "status": "error",
-                    "message": f"Error sending message: {str(e)}"
-                })
+                    "message": f"Gagal mengirim ke semua kontak:\n{failed_names}",
+                    "failed": send_failures
+                }, ensure_ascii=False)
         
         # Register tools
-        tools_list = [search_news, use_cached_context]
+        tools_list = [search_news, use_cached_context, save_recommendation]
         
         # Add WhatsApp tool if available
         if self.fonnte_client:
@@ -553,40 +768,48 @@ PERCAKAPAN SEBELUMNYA:
 
 PERTANYAAN USER: {question}
 
-LANGKAH 1 - ANALISIS PERTANYAAN:
-Tentukan apakah ini pertanyaan follow-up atau topik baru:
-- Cari kata rujukan: "itu", "tersebut", "tadi", "yang tadi", "sebelumnya"
-- Periksa apakah pertanyaan terkait percakapan sebelumnya
+INSTRUKSI RESPONSE:
 
-LANGKAH 2 - PILIH TOOL:
-- use_cached_context: Jika pertanyaan follow-up tentang berita yang sudah dibahas
-- search_news: Jika pertanyaan tentang topik baru atau butuh informasi fresh
-- send_to_whatsapp: Jika user minta kirim/share rangkuman ke WhatsApp
+1. ANALISIS PERTANYAAN (internal, jangan ditulis di output):
+   - Cek apakah follow-up (kata: "itu", "tersebut", "tadi") atau topik baru
+   - Pilih tool: use_cached_context (follow-up) atau search_news (topik baru)
+   - Identifikasi intent: INFORMATIONAL, ACTION, atau RECOMMENDATION
 
-LANGKAH 3 - KLASIFIKASI INTENT PERTANYAAN:
-Setelah mendapat artikel, identifikasi jenis pertanyaan:
-1. INFORMATIONAL: "apa yang terjadi", "ada berita", "bagaimana kejadian"
-   → Jawab dengan FAKTA dari berita
+2. GENERATE RESPONSE (output ke user):
+   - Narasi natural dan mengalir (2-4 kalimat)
+   - TIDAK gunakan bullet points, markdown, numbering, atau **bold**
+   - TIDAK jelaskan proses berpikir (tool yang dipilih, intent, dll)
+   - Sertakan sumber: "Menurut [sumber] tanggal [tanggal]..."
    
-2. ACTION: "apa tindakan", "langkah apa", "apa yang dilakukan"
-   → Sebutkan tindakan KONKRET dari berita
-   → Jika tidak ada: "Belum ada informasi tentang tindakan..."
+3. HANDLING BERDASARKAN INTENT:
    
-3. RECOMMENDATION: "apa rekomendasi", "sebaiknya bagaimana", "apa yang bisa dilakukan"
-   → Berikan REKOMENDASI berdasarkan konteks berita
-   → Format: (1) Ringkas situasi, (2) Saran 2-3 hal, (3) Penutup
-   → Contoh: "Mengingat [situasi], beberapa hal yang bisa dilakukan: [saran 1], [saran 2]. [penutup]"
+   a) INFORMATIONAL: "apa yang terjadi", "ada berita", "bagaimana kejadian"
+      → Jawab dengan FAKTA dari berita
+      → Contoh: "Menurut Kompas tanggal 10 Desember, terjadi demo di Jakarta terkait penolakan UU Cipta Kerja. Ribuan mahasiswa turun ke jalan dan aksi berjalan hingga sore hari."
+   
+   b) ACTION: "apa tindakan", "langkah apa", "apa yang dilakukan"
+      → Sebutkan tindakan KONKRET dari berita
+      → Jika tidak ada: "Belum ada informasi tentang tindakan pejabat dalam berita yang saya akses."
+   
+   c) RECOMMENDATION: "apa rekomendasi", "sebaiknya bagaimana", "apa yang bisa dilakukan"
+      → Berikan REKOMENDASI dalam bentuk NARASI MENGALIR
+      → Format: Ringkas situasi → saran konkret → penutup
+      → Contoh: "Mengingat situasi demo yang sensitif, penting untuk mengutamakan dialog antara pihak berwenang dan massa untuk mencari solusi damai. Transparansi dalam penanganan insiden juga perlu dijaga agar tidak timbul eskalasi. Semua pihak sebaiknya mengedepankan musyawarah demi ketertiban bersama."
+      → WAJIB call save_recommendation DUA KALI:
+         1. save_recommendation(content="[ringkasan berita]", content_type="summary")
+         2. save_recommendation(content="[rekomendasi lengkap]", content_type="recommendation")
 
-LANGKAH 4 - GENERATE RESPONSE:
-- Narasi natural dan mengalir (2-4 kalimat)
-- Sertakan sumber: "Menurut [sumber] tanggal [tanggal]..."
-- TIDAK gunakan bullet points, markdown, atau numbering
-- WAJIB jawab sesuai intent: faktual untuk info, rekomendasi untuk saran
+4. WHATSAPP HANDLING:
+   - Jika user minta kirim tanpa sebutkan kontak → call send_to_whatsapp("")
+   - Jika user sebutkan nama kontak → call send_to_whatsapp("nama_kontak")
+   - Jika user minta kirim ke semua → call send_to_whatsapp("semua")
+   - Jika tool return error: SAMPAIKAN ERROR MESSAGE PERSIS SEPERTI YANG DIBERIKAN TOOL
+     * JANGAN ubah atau interpretasi ulang error message
+     * Contoh: Tool return "Maaf, Anda (...) tidak memiliki akses..."
+              → Sampaikan PERSIS: "Maaf, Anda (...) tidak memiliki akses..."
+              → JANGAN ubah jadi "akun saya tidak memiliki akses"
 
-ATURAN PENTING:
-- Jika user minta rekomendasi: WAJIB berikan rekomendasi konkret
-- Jangan hanya melaporkan "tidak ada rekomendasi di berita"
-- Berikan insight/saran berdasarkan konteks situasi di berita"""
+PENTING: Jangan pernah tampilkan proses berpikir internal ke user. Output harus natural seperti percakapan biasa."""
 
             # Execute agent
             print("[AGENT] Invoking agent...")
@@ -627,8 +850,10 @@ ATURAN PENTING:
             # Extract sources from cached articles
             sources = [article.get('headline', '') for article in self.recent_articles_cache]
             
-            # Store last response for WhatsApp sharing
+            # Store last response for WhatsApp sharing (legacy fallback)
+            # Note: Now we prefer explicit save_recommendation tool over this implicit approach
             self.last_response = final_response
+            print(f"[CONTEXT] Saved to last_response: {final_response[:50]}...")
             
             # Update memory
             self.memory.add_user_message(question)
