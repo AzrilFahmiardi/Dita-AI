@@ -5,15 +5,16 @@ Terminal assistant handles all audio processing
 """
 import asyncio
 from datetime import datetime, timedelta
+from typing import List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from broadcaster import broadcaster
 from database import get_db
-from database.models import User, AuditLog
+from database.models import User, AuditLog, WhatsAppContact
 from auth.security import verify_password, create_access_token, create_refresh_token, verify_token
-from auth.dependencies import get_current_active_user
+from auth.dependencies import get_current_active_user, require_permission, require_role_level
 from auth.schemas import (
     LoginRequest,
     TokenResponse,
@@ -21,8 +22,21 @@ from auth.schemas import (
     UserProfileResponse,
     RoleSchema,
     WhatsAppContactSchema,
-    UserContactSchema
+    UserContactSchema,
+    UserCreateRequest,
+    UserUpdateRequest,
+    ChangePasswordRequest,
+    ContactCreateRequest,
+    ContactUpdateRequest,
+    AssignContactRequest,
+    UserListResponse,
+    AuditLogResponse,
+    MessageCreateRequest,
+    MessageResponse
 )
+from services.user_service import UserService
+from services.whatsapp_service import WhatsAppService
+from services.audit_service import AuditService
 
 # Configuration
 DASHBOARD_HOST = '0.0.0.0'
@@ -251,6 +265,344 @@ async def logout(
     db.commit()
     
     return {"message": "Successfully logged out"}
+
+
+# User Management Endpoints
+@app.get("/api/users", response_model=List[UserListResponse])
+async def list_users(
+    skip: int = 0,
+    limit: int = 100,
+    role_id: Optional[int] = None,
+    is_active: Optional[bool] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of users (requires authentication)"""
+    users = UserService.get_users(db, skip, limit, role_id, is_active)
+    return [
+        UserListResponse(
+            id=user.id,
+            nrp=user.nrp,
+            username=user.username,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            role=RoleSchema(
+                id=user.role.id,
+                name=user.role.name,
+                level=user.role.level,
+                permissions=user.role.permissions
+            ),
+            last_login=user.last_login
+        )
+        for user in users
+    ]
+
+
+@app.get("/api/users/search")
+async def search_users(
+    q: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Search users by username, NRP, or full name"""
+    users = UserService.search_users(db, q)
+    return [
+        UserListResponse(
+            id=user.id,
+            nrp=user.nrp,
+            username=user.username,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            role=RoleSchema(
+                id=user.role.id,
+                name=user.role.name,
+                level=user.role.level,
+                permissions=user.role.permissions
+            ),
+            last_login=user.last_login
+        )
+        for user in users
+    ]
+
+
+@app.get("/api/users/{user_id}", response_model=UserProfileResponse)
+async def get_user(
+    user_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get user by ID"""
+    user = UserService.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_contacts = []
+    for uc in user.user_contacts:
+        user_contacts.append(UserContactSchema(
+            contact=WhatsAppContactSchema(
+                id=uc.contact.id,
+                name=uc.contact.name,
+                phone_number=uc.contact.phone_number,
+                is_active=uc.contact.is_active
+            ),
+            can_send=uc.can_send
+        ))
+    
+    return UserProfileResponse(
+        id=user.id,
+        nrp=user.nrp,
+        username=user.username,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        role=RoleSchema(
+            id=user.role.id,
+            name=user.role.name,
+            level=user.role.level,
+            permissions=user.role.permissions
+        ),
+        contacts=user_contacts,
+        last_login=user.last_login,
+        created_at=user.created_at,
+        updated_at=user.updated_at
+    )
+
+
+@app.post("/api/users", response_model=UserListResponse, dependencies=[Depends(require_role_level(1))])
+async def create_user(
+    user_data: UserCreateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Create new user (KAPOLRI only)"""
+    if UserService.get_user_by_username(db, user_data.username):
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    if UserService.get_user_by_nrp(db, user_data.nrp):
+        raise HTTPException(status_code=400, detail="NRP already exists")
+    
+    user = UserService.create_user(
+        db,
+        nrp=user_data.nrp,
+        username=user_data.username,
+        password=user_data.password,
+        full_name=user_data.full_name,
+        role_id=user_data.role_id,
+        is_active=user_data.is_active
+    )
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="create",
+        resource="user",
+        details={"created_user_id": user.id, "username": user.username}
+    )
+    
+    return UserListResponse(
+        id=user.id,
+        nrp=user.nrp,
+        username=user.username,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        role=RoleSchema(
+            id=user.role.id,
+            name=user.role.name,
+            level=user.role.level,
+            permissions=user.role.permissions
+        ),
+        last_login=user.last_login
+    )
+
+
+@app.put("/api/users/{user_id}", dependencies=[Depends(require_role_level(1))])
+async def update_user(
+    user_id: int,
+    user_data: UserUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update user (KAPOLRI only)"""
+    user = UserService.update_user(
+        db, user_id,
+        full_name=user_data.full_name,
+        role_id=user_data.role_id,
+        is_active=user_data.is_active
+    )
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="update",
+        resource="user",
+        details={"updated_user_id": user_id}
+    )
+    
+    return {"message": "User updated successfully"}
+
+
+@app.post("/api/users/{user_id}/change-password")
+async def change_password(
+    user_id: int,
+    password_data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Change user password (own or KAPOLRI)"""
+    if current_user.id != user_id and current_user.role.level > 1:
+        raise HTTPException(status_code=403, detail="Cannot change other user's password")
+    
+    success = UserService.change_password(db, user_id, password_data.new_password)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="change_password",
+        resource="user",
+        details={"target_user_id": user_id}
+    )
+    
+    return {"message": "Password changed successfully"}
+
+
+# WhatsApp Contact Endpoints
+@app.get("/api/contacts", response_model=List[WhatsAppContactSchema])
+async def list_contacts(
+    is_active: Optional[bool] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all WhatsApp contacts"""
+    contacts = WhatsAppService.get_all_contacts(db, is_active, skip, limit)
+    return contacts
+
+
+@app.post("/api/contacts", response_model=WhatsAppContactSchema, dependencies=[Depends(require_role_level(2))])
+async def create_contact(
+    contact_data: ContactCreateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Create new WhatsApp contact (KAPOLRI/KAPOLDA)"""
+    if WhatsAppService.get_contact_by_phone(db, contact_data.phone_number):
+        raise HTTPException(status_code=400, detail="Phone number already exists")
+    
+    contact = WhatsAppService.create_contact(
+        db,
+        name=contact_data.name,
+        phone_number=contact_data.phone_number,
+        is_active=contact_data.is_active
+    )
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="create",
+        resource="contact",
+        details={"contact_id": contact.id, "phone": contact.phone_number}
+    )
+    
+    return contact
+
+
+@app.put("/api/contacts/{contact_id}", dependencies=[Depends(require_role_level(2))])
+async def update_contact(
+    contact_id: int,
+    contact_data: ContactUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update WhatsApp contact (KAPOLRI/KAPOLDA)"""
+    contact = WhatsAppService.update_contact(
+        db, contact_id,
+        name=contact_data.name,
+        phone_number=contact_data.phone_number,
+        is_active=contact_data.is_active
+    )
+    
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="update",
+        resource="contact",
+        details={"contact_id": contact_id}
+    )
+    
+    return {"message": "Contact updated successfully"}
+
+
+@app.post("/api/contacts/assign", dependencies=[Depends(require_role_level(1))])
+async def assign_contact(
+    assignment: AssignContactRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Assign contact to user (KAPOLRI only)"""
+    user_contact = WhatsAppService.assign_contact_to_user(
+        db,
+        user_id=assignment.user_id,
+        contact_id=assignment.contact_id,
+        can_send=assignment.can_send
+    )
+    
+    if not user_contact:
+        raise HTTPException(status_code=404, detail="User or contact not found")
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="assign_contact",
+        resource="user_contact",
+        details={
+            "user_id": assignment.user_id,
+            "contact_id": assignment.contact_id,
+            "can_send": assignment.can_send
+        }
+    )
+    
+    return {"message": "Contact assigned successfully"}
+
+
+# Audit Log Endpoints
+@app.get("/api/audit-logs", response_model=List[AuditLogResponse], dependencies=[Depends(require_role_level(2))])
+async def get_audit_logs(
+    skip: int = 0,
+    limit: int = 100,
+    action: Optional[str] = None,
+    resource: Optional[str] = None,
+    days: Optional[int] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get audit logs (KAPOLRI/KAPOLDA)"""
+    logs = AuditService.get_all_logs(db, skip, limit, action, resource, days)
+    return logs
+
+
+@app.get("/api/audit-logs/user/{user_id}", response_model=List[AuditLogResponse])
+async def get_user_audit_logs(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's audit logs (own or KAPOLRI/KAPOLDA)"""
+    if current_user.id != user_id and current_user.role.level > 2:
+        raise HTTPException(status_code=403, detail="Cannot view other user's logs")
+    
+    logs = AuditService.get_user_logs(db, user_id, skip, limit)
+    return logs
 
 
 @app.websocket("/ws/dashboard")
