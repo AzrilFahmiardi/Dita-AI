@@ -17,6 +17,29 @@ Host Machine (Terminal)          Docker Containers
                                  └─────────────────────┘
 ```
 
+## Project Structure
+
+```
+Dita/
+├── voice-assistant/       # Voice I/O + AI processing (runs on host)
+│   ├── main.py           # Entry point
+│   ├── wakeword.py       # Wake word detection
+│   ├── stt.py            # Speech-to-text
+│   ├── rag.py            # RAG with Gemini
+│   ├── tts.py            # Text-to-speech
+│   └── pyproject.toml    # Dependencies
+├── backend/              # WebSocket API server (Docker)
+│   ├── main.py           # FastAPI server
+│   ├── broadcaster.py    # WebSocket broadcaster
+│   ├── Dockerfile
+│   └── pyproject.toml    # API dependencies
+├── frontend/             # React dashboard (Docker)
+│   ├── src/
+│   ├── Dockerfile
+│   └── package.json
+└── docker-compose.yml
+```
+
 ## Quick Start
 
 ### 1. Start Docker Infrastructure
@@ -29,17 +52,17 @@ docker compose up -d
 docker compose ps
 ```
 
-### 2. Install Dependencies (First time only)
+### 2. Install Voice Assistant Dependencies
 
 ```bash
-cd backend
+cd voice-assistant
 uv sync
 ```
 
 ### 3. Run Voice Assistant
 
 ```bash
-cd backend
+cd voice-assistant
 uv run python main.py
 ```
 
@@ -66,7 +89,7 @@ docker compose down
 
 ## Environment Setup
 
-Configure `.env` file:
+Configure `.env` file in root directory:
 - `PORCUPINE_ACCESS_KEY` - Wake word detection
 - `GEMINI_API_KEY` - Google Gemini API
 - `ES_PASSWORD` - Elasticsearch password

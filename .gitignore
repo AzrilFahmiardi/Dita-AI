@@ -34,5 +34,4 @@ Thumbs.db
 
 # Data
 data/
-models/*.ppn
 *.log
