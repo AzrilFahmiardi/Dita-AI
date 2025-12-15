@@ -3,30 +3,20 @@ Dita AI Assistant - FastAPI Backend (Display-only mode)
 WebSocket-based status broadcaster for web dashboard
 Terminal assistant handles all audio processing
 """
-import os
-import sys
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-# Add parent directory to path to import Dita modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from broadcaster import broadcaster
 
-from backend.broadcaster import broadcaster
-from config_manager import get_config
-
-# Load dashboard config
-config = get_config()
-dashboard_config = config.get('dashboard', {})
-backend_config = dashboard_config.get('backend', {})
-
-DASHBOARD_HOST = backend_config.get('host', '0.0.0.0')
-DASHBOARD_PORT = backend_config.get('port', 8000)
-CORS_ORIGINS = backend_config.get('cors_origins', [
+# Configuration
+DASHBOARD_HOST = '0.0.0.0'
+DASHBOARD_PORT = 8000
+CORS_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000"
-])
+]
 
 app = FastAPI(
     title="Dita AI Assistant Dashboard API",

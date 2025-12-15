@@ -17,8 +17,8 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml ./
 
-# Install Python dependencies
-RUN uv sync --no-dev
+# Install Python dependencies directly without building wheel
+RUN uv pip install --system --no-cache fastapi uvicorn[standard] python-multipart
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Slim production image
@@ -39,8 +39,8 @@ RUN useradd -m -u 1000 dita && \
 # Set working directory
 WORKDIR /app
 
-# Copy virtual environment from builder
-COPY --from=builder /app/.venv /app/.venv
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 
 # Copy application code
 COPY --chown=dita:dita . .
@@ -48,8 +48,7 @@ COPY --chown=dita:dita . .
 # Set environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH="/app:$PYTHONPATH" \
-    PATH="/app/.venv/bin:$PATH"
+    PYTHONPATH="/app:$PYTHONPATH"
 
 # Switch to non-root user
 USER dita

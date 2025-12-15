@@ -1,52 +1,14 @@
-[project][project]
-
-name = "dita-backend"name = "dita-ai-assistant"
-
-version = "1.0.0"version = "0.1.0"
-
-description = "Dita AI Assistant - WebSocket API Server"description = "Add your description here"
-
-requires-python = ">=3.13"readme = "README.md"
-
-dependencies = [requires-python = ">=3.13"
-
-    "fastapi>=0.115.6",dependencies = [
-
-    "uvicorn[standard]>=0.34.0",    "elasticsearch==8.12.0",
-
-    "python-multipart>=0.0.20",    "fastapi>=0.121.2",
-
-]    "google-cloud-texttospeech>=2.33.0",
-
-    "google-genai>=1.49.0",
-
-[build-system]    "langchain>=1.0.5",
-
-requires = ["hatchling"]    "langchain-community>=0.4.1",
-
-build-backend = "hatchling.build"    "langchain-core>=1.0.4",
-
-    "langchain-google-genai>=3.0.1",
-    "langchain-huggingface>=1.0.1",
-    "langchain-text-splitters>=1.0.0",
-    "numpy>=2.3.4",
-    "pvporcupine>=3.0.5",
-    "pyaudio>=0.2.14",
-    "python-dotenv>=1.2.1",
+[project]
+name = "dita-backend"
+version = "1.0.0"
+description = "Dita AI Assistant - WebSocket API Server"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.6",
+    "uvicorn[standard]>=0.34.0",
     "python-multipart>=0.0.20",
-    "requests>=2.32.5",
-    "silero-vad>=6.2.0",
-    "sounddevice>=0.5.3",
-    "streamlit>=1.51.0",
-    "torch>=2.9.0",
-    "transformers>=4.57.1",
-    "uvicorn>=0.38.0",
-    "websockets>=15.0.1",
 ]
 
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
