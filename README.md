@@ -1,4 +1,4 @@
-di doct# Dita AI Assistant
+# Dita AI Assistant
 
 Voice-enabled AI assistant with web dashboard.
 

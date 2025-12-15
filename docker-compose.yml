@@ -1,4 +1,24 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dita-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dita_db}
+      POSTGRES_USER: ${POSTGRES_USER:-dita_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dita_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dita-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dita_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -7,10 +27,14 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-dita_user}:${POSTGRES_PASSWORD:-dita_password}@postgres:5432/${POSTGRES_DB:-dita_db}
       - PORCUPINE_ACCESS_KEY=${PORCUPINE_ACCESS_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - ES_PASSWORD=${ES_PASSWORD}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gc-tts-credential.json
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
     volumes:
@@ -52,3 +76,7 @@ services:
 networks:
   dita-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

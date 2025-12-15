@@ -4,10 +4,25 @@ WebSocket-based status broadcaster for web dashboard
 Terminal assistant handles all audio processing
 """
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from datetime import datetime, timedelta
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
 from broadcaster import broadcaster
+from database import get_db
+from database.models import User, AuditLog
+from auth.security import verify_password, create_access_token, create_refresh_token, verify_token
+from auth.dependencies import get_current_active_user
+from auth.schemas import (
+    LoginRequest,
+    TokenResponse,
+    RefreshTokenRequest,
+    UserProfileResponse,
+    RoleSchema,
+    WhatsAppContactSchema,
+    UserContactSchema
+)
 
 # Configuration
 DASHBOARD_HOST = '0.0.0.0'
@@ -65,6 +80,177 @@ async def health_check():
         "connections": len(broadcaster.connections),
         "current_state": broadcaster.current_state
     }
+
+
+# Authentication Endpoints
+@app.post("/auth/login", response_model=TokenResponse)
+async def login(
+    login_data: LoginRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticate user and return JWT tokens.
+    
+    Args:
+        login_data: Username and password
+        db: Database session
+        
+    Returns:
+        Access token and refresh token
+    """
+    user = db.query(User).filter(User.username == login_data.username).first()
+    
+    if not user or not verify_password(login_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+    
+    user.last_login = datetime.utcnow()
+    db.commit()
+    
+    audit_log = AuditLog(
+        user_id=user.id,
+        action="login",
+        resource="auth",
+        details={"username": user.username}
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    access_token = create_access_token(data={"sub": user.username})
+    refresh_token = create_refresh_token(data={"sub": user.username})
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=15 * 60
+    )
+
+
+@app.post("/auth/refresh", response_model=TokenResponse)
+async def refresh_token_endpoint(
+    refresh_data: RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh access token using refresh token.
+    
+    Args:
+        refresh_data: Refresh token
+        db: Database session
+        
+    Returns:
+        New access token and refresh token
+    """
+    payload = verify_token(refresh_data.refresh_token, token_type="refresh")
+    
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    username = payload.get("sub")
+    user = db.query(User).filter(User.username == username).first()
+    
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive"
+        )
+    
+    access_token = create_access_token(data={"sub": user.username})
+    new_refresh_token = create_refresh_token(data={"sub": user.username})
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        expires_in=15 * 60
+    )
+
+
+@app.get("/auth/me", response_model=UserProfileResponse)
+async def get_current_user_profile(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get current user profile with role and allowed contacts.
+    
+    Args:
+        current_user: Current authenticated user
+        db: Database session
+        
+    Returns:
+        Complete user profile with permissions and contacts
+    """
+    user_contacts = []
+    for uc in current_user.user_contacts:
+        user_contacts.append(UserContactSchema(
+            contact=WhatsAppContactSchema(
+                id=uc.contact.id,
+                name=uc.contact.name,
+                phone_number=uc.contact.phone_number,
+                is_active=uc.contact.is_active
+            ),
+            can_send=uc.can_send
+        ))
+    
+    return UserProfileResponse(
+        id=current_user.id,
+        nrp=current_user.nrp,
+        username=current_user.username,
+        full_name=current_user.full_name,
+        is_active=current_user.is_active,
+        role=RoleSchema(
+            id=current_user.role.id,
+            name=current_user.role.name,
+            level=current_user.role.level,
+            permissions=current_user.role.permissions
+        ),
+        contacts=user_contacts,
+        last_login=current_user.last_login,
+        created_at=current_user.created_at,
+        updated_at=current_user.updated_at
+    )
+
+
+@app.post("/auth/logout")
+async def logout(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Logout current user (client should discard tokens).
+    
+    Args:
+        current_user: Current authenticated user
+        db: Database session
+        
+    Returns:
+        Success message
+    """
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        action="logout",
+        resource="auth",
+        details={"username": current_user.username}
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"message": "Successfully logged out"}
 
 
 @app.websocket("/ws/dashboard")
