@@ -1,0 +1,400 @@
+import { useVoiceChat } from './hooks/useVoiceChat';import { useVoiceChat } from './hooks/useVoiceChat';import { useState, useEffect } from 'react'
+
+import { VoiceOrb } from './components/VoiceOrb';
+
+import { motion, AnimatePresence } from 'framer-motion';import { VoiceOrb } from './components/VoiceOrb';import VoiceOrb from './components/VoiceOrb'
+
+
+
+function App() {import { motion, AnimatePresence } from 'framer-motion';import useVoiceChat from './hooks/useVoiceChat'
+
+  const { connectionStatus, ditaState, transcript, response } = useVoiceChat();
+
+import './App.css'
+
+  const getStateLabel = (state) => {
+
+    const labels = {function App() {
+
+      idle: 'Standby',
+
+      listening: 'Mendengarkan wake word...',  const { connectionStatus, ditaState, transcript, response } = useVoiceChat();function App() {
+
+      wake_word_detected: 'Wake word terdeteksi!',
+
+      recording: 'Merekam suara...',  const {
+
+      processing: 'Memproses...',
+
+      speaking: 'Berbicara...',  const getStateLabel = (state) => {    isConnected,
+
+    };
+
+    return labels[state] || state;    const labels = {    isListening,
+
+  };
+
+      idle: 'Standby',    isRecording,
+
+  const getConnectionColor = (status) => {
+
+    const colors = {      listening: 'Mendengarkan wake word...',    isProcessing,
+
+      connected: 'text-green-400',
+
+      connecting: 'text-yellow-400',      wake_word_detected: 'Wake word terdeteksi!',    transcript,
+
+      disconnected: 'text-red-400',
+
+      error: 'text-red-500',      recording: 'Merekam suara...',    response,
+
+    };
+
+    return colors[status] || 'text-gray-400';      processing: 'Memproses...',    error,
+
+  };
+
+      speaking: 'Berbicara...',    wakeWordDetected,
+
+  return (
+
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-8">    };    startListening,
+
+      <div className="max-w-4xl w-full space-y-8">
+
+        {/* Header */}    return labels[state] || state;    stopListening,
+
+        <div className="text-center">
+
+          <motion.h1  };    connect,
+
+            initial={{ opacity: 0, y: -20 }}
+
+            animate={{ opacity: 1, y: 0 }}    disconnect
+
+            className="text-5xl font-bold text-white mb-2"
+
+          >  const getConnectionColor = (status) => {  } = useVoiceChat()
+
+            Dita AI Assistant
+
+          </motion.h1>    const colors = {
+
+          <motion.div
+
+            initial={{ opacity: 0 }}      connected: 'text-green-400',  useEffect(() => {
+
+            animate={{ opacity: 1 }}
+
+            transition={{ delay: 0.2 }}      connecting: 'text-yellow-400',    // Auto-connect on mount
+
+            className="flex items-center justify-center gap-2"
+
+          >      disconnected: 'text-red-400',    connect()
+
+            <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+
+            <span className={`text-sm ${getConnectionColor(connectionStatus)}`}>      error: 'text-red-500',    
+
+              {connectionStatus === 'connected' ? 'Dashboard Connected' : 'Dashboard Disconnected'}
+
+            </span>    };    return () => {
+
+          </motion.div>
+
+        </div>    return colors[status] || 'text-gray-400';      disconnect()
+
+
+
+        {/* Voice Orb */}  };    }
+
+        <motion.div
+
+          initial={{ scale: 0.8, opacity: 0 }}  }, [])
+
+          animate={{ scale: 1, opacity: 1 }}
+
+          transition={{ delay: 0.3 }}  return (
+
+          className="flex justify-center"
+
+        >    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-8">  const handleToggleListening = async () => {
+
+          <VoiceOrb state={ditaState} />
+
+        </motion.div>      <div className="max-w-4xl w-full space-y-8">    if (isListening) {
+
+
+
+        {/* State Label */}        {/* Header */}      await stopListening()
+
+        <motion.div
+
+          initial={{ opacity: 0 }}        <div className="text-center">    } else {
+
+          animate={{ opacity: 1 }}
+
+          transition={{ delay: 0.4 }}          <motion.h1      await startListening()
+
+          className="text-center"
+
+        >            initial={{ opacity: 0, y: -20 }}    }
+
+          <p className="text-2xl font-medium text-purple-300">
+
+            {getStateLabel(ditaState)}            animate={{ opacity: 1, y: 0 }}  }
+
+          </p>
+
+        </motion.div>            className="text-5xl font-bold text-white mb-2"
+
+
+
+        {/* Transcript */}          >  return (
+
+        <AnimatePresence mode="wait">
+
+          {transcript && (            Dita AI Assistant    <div className="min-h-screen flex flex-col items-center justify-center p-8">
+
+            <motion.div
+
+              key="transcript"          </motion.h1>      {/* Header */}
+
+              initial={{ opacity: 0, y: 20 }}
+
+              animate={{ opacity: 1, y: 0 }}          <motion.div      <div className="text-center mb-8">
+
+              exit={{ opacity: 0, y: -20 }}
+
+              className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/30"            initial={{ opacity: 0 }}        <h1 className="text-5xl font-bold text-white mb-2">
+
+            >
+
+              <h3 className="text-sm font-semibold text-purple-400 mb-2">Anda berkata:</h3>            animate={{ opacity: 1 }}          Dita AI Assistant
+
+              <p className="text-lg text-white">{transcript}</p>
+
+            </motion.div>            transition={{ delay: 0.2 }}        </h1>
+
+          )}
+
+        </AnimatePresence>            className="flex items-center justify-center gap-2"        <p className="text-white/80 text-lg">
+
+
+
+        {/* Response */}          >          {isListening ? 'Katakan "Hey Dita" untuk mulai berbicara' : 'Klik tombol untuk mengaktifkan Dita'}
+
+        <AnimatePresence mode="wait">
+
+          {response && (            <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />        </p>
+
+            <motion.div
+
+              key="response"            <span className={`text-sm ${getConnectionColor(connectionStatus)}`}>      </div>
+
+              initial={{ opacity: 0, y: 20 }}
+
+              animate={{ opacity: 1, y: 0 }}              {connectionStatus === 'connected' ? 'Dashboard Connected' : 'Dashboard Disconnected'}
+
+              exit={{ opacity: 0, y: -20 }}
+
+              className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/30"            </span>      {/* Main Voice Orb */}
+
+            >
+
+              <h3 className="text-sm font-semibold text-blue-400 mb-2">Dita menjawab:</h3>          </motion.div>      <div className="flex-1 flex items-center justify-center">
+
+              <p className="text-lg text-white leading-relaxed">{response}</p>
+
+            </motion.div>        </div>        <VoiceOrb
+
+          )}
+
+        </AnimatePresence>          isActive={isListening || isRecording || isProcessing}
+
+
+
+        {/* Info Footer */}        {/* Voice Orb */}          isListening={isListening && !isRecording}
+
+        <motion.div
+
+          initial={{ opacity: 0 }}        <motion.div          isRecording={isRecording}
+
+          animate={{ opacity: 1 }}
+
+          transition={{ delay: 0.5 }}          initial={{ scale: 0.8, opacity: 0 }}          isSpeaking={isProcessing}
+
+          className="text-center text-sm text-gray-400"
+
+        >          animate={{ scale: 1, opacity: 1 }}          wakeWordDetected={wakeWordDetected}
+
+          <p>Katakan "Hey Dita" untuk memulai percakapan</p>
+
+          <p className="mt-1 text-xs">Dashboard mode: Display only</p>          transition={{ delay: 0.3 }}        />
+
+        </motion.div>
+
+      </div>          className="flex justify-center"      </div>
+
+    </div>
+
+  );        >
+
+}
+
+          <VoiceOrb state={ditaState} />      {/* Control Button */}
+
+export default App;
+
+        </motion.div>      <div className="mb-8">
+
+        <button
+
+        {/* State Label */}          onClick={handleToggleListening}
+
+        <motion.div          disabled={!isConnected || isRecording || isProcessing}
+
+          initial={{ opacity: 0 }}          className={`
+
+          animate={{ opacity: 1 }}            px-8 py-4 rounded-full text-xl font-semibold
+
+          transition={{ delay: 0.4 }}            transition-all duration-300 transform hover:scale-105
+
+          className="text-center"            ${isListening 
+
+        >              ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/50' 
+
+          <p className="text-2xl font-medium text-purple-300">              : 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/50'
+
+            {getStateLabel(ditaState)}            }
+
+          </p>            ${(!isConnected || isRecording || isProcessing) && 'opacity-50 cursor-not-allowed'}
+
+        </motion.div>          `}
+
+        >
+
+        {/* Transcript */}          {isListening ? '🛑 Stop Listening' : '🎤 Start Listening'}
+
+        <AnimatePresence mode="wait">        </button>
+
+          {transcript && (      </div>
+
+            <motion.div
+
+              key="transcript"      {/* Response Display */}
+
+              initial={{ opacity: 0, y: 20 }}      {response && (
+
+              animate={{ opacity: 1, y: 0 }}        <div className="w-full max-w-3xl bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-8 animate-fade-in">
+
+              exit={{ opacity: 0, y: -20 }}          <div className="text-white/70 text-sm mb-2">Dita:</div>
+
+              className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/30"          <div className="text-white text-lg leading-relaxed">
+
+            >            {response}
+
+              <h3 className="text-sm font-semibold text-purple-400 mb-2">Anda berkata:</h3>          </div>
+
+              <p className="text-lg text-white">{transcript}</p>        </div>
+
+            </motion.div>      )}
+
+          )}
+
+        </AnimatePresence>      {/* Transcript Display */}
+
+      {transcript && (
+
+        {/* Response */}        <div className="w-full max-w-3xl bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-8 animate-fade-in">
+
+        <AnimatePresence mode="wait">          <div className="text-white/70 text-sm mb-2">Anda:</div>
+
+          {response && (          <div className="text-white text-lg">
+
+            <motion.div            {transcript}
+
+              key="response"          </div>
+
+              initial={{ opacity: 0, y: 20 }}        </div>
+
+              animate={{ opacity: 1, y: 0 }}      )}
+
+              exit={{ opacity: 0, y: -20 }}
+
+              className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/30"      {/* Status Indicator */}
+
+            >      <div className="text-center mb-4">
+
+              <h3 className="text-sm font-semibold text-blue-400 mb-2">Dita menjawab:</h3>        {!isConnected && (
+
+              <p className="text-lg text-white leading-relaxed">{response}</p>          <div className="text-red-300 text-sm">
+
+            </motion.div>            ⚠️ Tidak terhubung ke server
+
+          )}          </div>
+
+        </AnimatePresence>        )}
+
+        {isConnected && !isListening && !isRecording && !isProcessing && (
+
+        {/* Info Footer */}          <div className="text-white/60 text-sm">
+
+        <motion.div            � Dita sedang tidur - Klik tombol untuk membangunkan
+
+          initial={{ opacity: 0 }}          </div>
+
+          animate={{ opacity: 1 }}        )}
+
+          transition={{ delay: 0.5 }}        {isListening && !isRecording && !isProcessing && (
+
+          className="text-center text-sm text-gray-400"          <div className="text-green-300 text-sm animate-pulse">
+
+        >            👂 Mendengarkan untuk "Hey Dita"...
+
+          <p>Katakan "Hey Dita" untuk memulai percakapan</p>          </div>
+
+          <p className="mt-1 text-xs">Dashboard mode: Display only</p>        )}
+
+        </motion.div>        {wakeWordDetected && (
+
+      </div>          <div className="text-yellow-300 text-sm animate-pulse">
+
+    </div>            🎯 Wake word terdeteksi!
+
+  );          </div>
+
+}        )}
+
+        {isRecording && (
+
+export default App;          <div className="text-blue-300 text-sm animate-pulse">
+
+            🎤 Merekam pertanyaan Anda...
+          </div>
+        )}
+        {isProcessing && !isRecording && (
+          <div className="text-purple-300 text-sm animate-pulse">
+            🤔 Dita sedang berpikir...
+          </div>
+        )}
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="w-full max-w-3xl bg-red-500/20 backdrop-blur-lg rounded-2xl p-4 border border-red-500/50">
+          <div className="text-red-200 text-sm">
+            ❌ {error}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="text-center mt-8 text-white/40 text-sm">
+        <p>Powered by Dita AI • Speech Recognition • RAG</p>
+      </div>
+    </div>
+  )
+}
+
+export default App
