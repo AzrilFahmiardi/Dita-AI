@@ -19,7 +19,7 @@ const Button = ({
   className = '',
   ...props
 }) => {
-  const baseStyles = 'font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
 
   const variantStyles = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-600 disabled:bg-blue-300',

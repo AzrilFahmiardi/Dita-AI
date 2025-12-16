@@ -4,6 +4,9 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './routes/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import VoiceAssistantPage from './pages/VoiceAssistantPage';
+import DashboardLayout from './components/layout/DashboardLayout';
+import KapolriDashboard from './pages/kapolri/Dashboard';
+import UserManagement from './pages/kapolri/UserManagement';
 
 function App() {
   return (
@@ -12,11 +15,26 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           
-          <Route element={<ProtectedRoute />}>
-            <Route path="/assistant" element={<VoiceAssistantPage />} />
+          <Route path="/assistant" element={<ProtectedRoute><VoiceAssistantPage /></ProtectedRoute>} />
+          
+          <Route element={<ProtectedRoute allowedRoles={['KAPOLRI']} />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/kapolri/dashboard" element={<KapolriDashboard />} />
+              <Route path="/kapolri/users" element={<UserManagement />} />
+            </Route>
           </Route>
 
           <Route path="/" element={<Navigate to="/assistant" replace />} />
+          
+          <Route path="/unauthorized" element={
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-slate-900 mb-4">403</h1>
+                <p className="text-slate-600 mb-4">Unauthorized Access</p>
+                <p className="text-sm text-slate-500">You do not have permission to access this page</p>
+              </div>
+            </div>
+          } />
           
           <Route path="*" element={
             <div className="min-h-screen flex items-center justify-center bg-slate-50">

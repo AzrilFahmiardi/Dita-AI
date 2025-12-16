@@ -4,8 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 /**
  * Protected route wrapper with role-based access control
  * @param {Array<string>} allowedRoles - List of roles allowed to access this route
+ * @param {ReactNode} children - Child components to render
  */
-const ProtectedRoute = ({ allowedRoles }) => {
+const ProtectedRoute = ({ allowedRoles, children }) => {
   const { user, isAuthenticated, loading } = useAuth();
 
   if (loading) {
@@ -24,7 +25,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  return <Outlet />;
+  return children || <Outlet />;
 };
 
 export default ProtectedRoute;

@@ -18,23 +18,32 @@ const authService = {
       password,
     });
 
-    if (response.access_token) {
-      localStorage.setItem(config.tokenKey, response.access_token);
-      localStorage.setItem(config.refreshTokenKey, response.refresh_token);
-      
-      const userData = {
-        username: username,
-        role: username.includes('kapolri') ? 'kapolri' : 
-              username.includes('kapolda') ? 'kapolda' : 'kapolres',
-        full_name: username,
-      };
-      
-      localStorage.setItem(config.userKey, JSON.stringify(userData));
-      
-      return { ...response, user: userData };
+    if (!response.access_token) {
+      throw new Error('No access token received from server');
     }
 
-    return response;
+    localStorage.setItem(config.tokenKey, response.access_token);
+    localStorage.setItem(config.refreshTokenKey, response.refresh_token);
+    
+    const userProfile = await api.get('/auth/me');
+    
+    if (!userProfile || !userProfile.role) {
+      throw new Error('Invalid user profile received from server');
+    }
+    
+    const userData = {
+      id: userProfile.id,
+      username: userProfile.username,
+      role: userProfile.role.name,
+      full_name: userProfile.full_name,
+      nrp: userProfile.nrp,
+      is_active: userProfile.is_active,
+    };
+    
+    console.log('Login successful, user data:', userData);
+    localStorage.setItem(config.userKey, JSON.stringify(userData));
+    
+    return { ...response, user: userData };
   },
 
   /**

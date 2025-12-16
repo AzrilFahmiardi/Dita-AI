@@ -443,6 +443,42 @@ async def update_user(
     return {"message": "User updated successfully"}
 
 
+@app.delete("/api/users/{user_id}", dependencies=[Depends(require_role_level(1))])
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete user (KAPOLRI only)"""
+    # Prevent deleting self
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    # Get user info before deletion for audit log
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    deleted_username = user.username
+    
+    # Delete user
+    success = UserService.delete_user(db, user_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log action
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="delete",
+        resource="user",
+        details={"deleted_user_id": user_id, "username": deleted_username}
+    )
+    
+    return {"message": "User deleted successfully"}
+
+
 @app.post("/api/users/{user_id}/change-password")
 async def change_password(
     user_id: int,

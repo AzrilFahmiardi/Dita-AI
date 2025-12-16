@@ -174,6 +174,27 @@ class UserService:
         return True
     
     @staticmethod
+    def delete_user(db: Session, user_id: int) -> bool:
+        """
+        Delete user account
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        
+        db.delete(user)
+        db.commit()
+        
+        return True
+    
+    @staticmethod
     def deactivate_user(db: Session, user_id: int) -> bool:
         """
         Deactivate user account

@@ -55,10 +55,12 @@ const VoiceAssistantPage = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-sm font-medium text-slate-900">
-                {user?.full_name || user?.username}
-              </p>
+            <div className="hidden sm:flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm font-medium text-slate-900">
+                  {user?.full_name}
+                </p>
+              </div>
               <Badge role={user?.role} variant="role" />
             </div>
           </div>

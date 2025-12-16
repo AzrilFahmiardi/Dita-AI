@@ -9,18 +9,21 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
+    console.log('AuthContext: Loaded user from localStorage:', currentUser);
     setUser(currentUser);
     setLoading(false);
   }, []);
 
   const login = async (username, password) => {
     const response = await authService.login(username, password);
+    console.log('AuthContext: Setting user after login:', response.user);
     setUser(response.user);
     return response;
   };
 
   const logout = () => {
     authService.logout();
+    console.log('AuthContext: User logged out');
     setUser(null);
   };
 

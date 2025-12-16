@@ -24,21 +24,21 @@ const Sidebar = ({ isOpen, onClose }) => {
   };
 
   const menuItems = {
-    kapolri: [
+    KAPOLRI: [
       { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
       { icon: ChartBarIcon, label: 'Dashboard', path: '/kapolri/dashboard' },
       { icon: UsersIcon, label: 'User Management', path: '/kapolri/users' },
       { icon: PhoneIcon, label: 'Contact Management', path: '/kapolri/contacts' },
       { icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: '/kapolri/audit-logs' },
     ],
-    kapolda: [
+    KAPOLDA: [
       { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
       { icon: ChartBarIcon, label: 'Dashboard', path: '/kapolda/dashboard' },
       { icon: UsersIcon, label: 'Users', path: '/kapolda/users' },
       { icon: PhoneIcon, label: 'Contact Management', path: '/kapolda/contacts' },
       { icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: '/kapolda/audit-logs' },
     ],
-    kapolres: [
+    KAPOLRES: [
       { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
       { icon: ChartBarIcon, label: 'Dashboard', path: '/kapolres/dashboard' },
       { icon: UserIcon, label: 'Profile', path: '/kapolres/profile' },
