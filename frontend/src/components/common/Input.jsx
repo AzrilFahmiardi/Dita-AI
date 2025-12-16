@@ -5,10 +5,11 @@ import { forwardRef } from 'react';
  * @param {string} label - Input label
  * @param {string} type - Input type
  * @param {string} error - Error message
+ * @param {string} helperText - Helper text below input
  * @param {boolean} required - Required field indicator
  */
 const Input = forwardRef(
-  ({ label, type = 'text', error, required = false, className = '', ...props }, ref) => {
+  ({ label, type = 'text', error, helperText, required = false, className = '', ...props }, ref) => {
     return (
       <div className="w-full">
         {label && (
@@ -39,6 +40,7 @@ const Input = forwardRef(
           {...props}
         />
         {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+        {!error && helperText && <p className="mt-1 text-xs text-slate-500">{helperText}</p>}
       </div>
     );
   }

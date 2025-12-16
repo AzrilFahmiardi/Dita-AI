@@ -553,12 +553,20 @@ async def create_contact(
         is_active=contact_data.is_active
     )
     
+    # Auto-assign contact to creator with can_send permission
+    WhatsAppService.assign_contact_to_user(
+        db,
+        user_id=current_user.id,
+        contact_id=contact.id,
+        can_send=True
+    )
+    
     AuditService.log_action(
         db,
         user_id=current_user.id,
         action="create",
         resource="contact",
-        details={"contact_id": contact.id, "phone": contact.phone_number}
+        details={"contact_id": contact.id, "phone": contact.phone_number, "auto_assigned": True}
     )
     
     return contact
@@ -591,6 +599,29 @@ async def update_contact(
     )
     
     return {"message": "Contact updated successfully"}
+
+
+@app.delete("/api/contacts/{contact_id}", dependencies=[Depends(require_role_level(2))])
+async def delete_contact(
+    contact_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete WhatsApp contact (KAPOLRI/KAPOLDA)"""
+    success = WhatsAppService.delete_contact(db, contact_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="delete",
+        resource="contact",
+        details={"contact_id": contact_id}
+    )
+    
+    return {"message": "Contact deleted successfully"}
 
 
 @app.post("/api/contacts/assign", dependencies=[Depends(require_role_level(1))])

@@ -7,6 +7,7 @@ import VoiceAssistantPage from './pages/VoiceAssistantPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import KapolriDashboard from './pages/kapolri/Dashboard';
 import UserManagement from './pages/kapolri/UserManagement';
+import ContactManagement from './pages/kapolri/ContactManagement';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route element={<DashboardLayout />}>
               <Route path="/kapolri/dashboard" element={<KapolriDashboard />} />
               <Route path="/kapolri/users" element={<UserManagement />} />
+              <Route path="/kapolri/contacts" element={<ContactManagement />} />
             </Route>
           </Route>
 

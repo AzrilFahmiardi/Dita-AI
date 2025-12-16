@@ -123,6 +123,34 @@ class WhatsAppService:
         return contact
     
     @staticmethod
+    def delete_contact(db: Session, contact_id: int) -> bool:
+        """
+        Delete WhatsApp contact
+        
+        Args:
+            db: Database session
+            contact_id: Contact ID
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        contact = db.query(WhatsAppContact).filter(
+            WhatsAppContact.id == contact_id
+        ).first()
+        
+        if not contact:
+            return False
+        
+        # Delete related user_contacts first
+        db.query(UserContact).filter(UserContact.contact_id == contact_id).delete()
+        
+        # Then delete the contact
+        db.delete(contact)
+        db.commit()
+        
+        return True
+    
+    @staticmethod
     def assign_contact_to_user(
         db: Session,
         user_id: int,

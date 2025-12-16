@@ -60,38 +60,19 @@ const contactService = {
   },
 
   /**
-   * Assign users to contact
+   * Assign contact to user
+   * @param {number} userId - User ID
    * @param {number} contactId - Contact ID
-   * @param {Array<Object>} assignments - User assignments
-   * @param {number} assignments[].user_id - User ID
-   * @param {boolean} assignments[].can_send - Permission to send
+   * @param {boolean} canSend - Permission to send
    * @returns {Promise<Object>} Assignment result
    */
-  assignUsers: async (contactId, assignments) => {
-    const response = await api.post(`/api/contacts/${contactId}/assign`, {
-      assignments
+  assignContactToUser: async (userId, contactId, canSend = true) => {
+    const response = await api.post('/api/contacts/assign', {
+      user_id: userId,
+      contact_id: contactId,
+      can_send: canSend
     });
     return response;
-  },
-
-  /**
-   * Get users assigned to contact
-   * @param {number} contactId - Contact ID
-   * @returns {Promise<Array>} List of assigned users
-   */
-  getAssignedUsers: async (contactId) => {
-    const response = await api.get(`/api/contacts/${contactId}/users`);
-    return response;
-  },
-
-  /**
-   * Remove user assignment from contact
-   * @param {number} contactId - Contact ID
-   * @param {number} userId - User ID
-   * @returns {Promise<void>}
-   */
-  removeUserAssignment: async (contactId, userId) => {
-    await api.delete(`/api/contacts/${contactId}/users/${userId}`);
   }
 };
 
