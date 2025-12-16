@@ -58,13 +58,46 @@ const LoginPage = () => {
     }
 
     setLoading(true);
+    setErrors({});
+    
     try {
-      await login(formData.username, formData.password);
-      toast.success('Login successful');
-      navigate('/assistant');
+      const response = await login(formData.username, formData.password);
+      
+      if (response && response.access_token) {
+        toast.success('Login successful! Redirecting...');
+        
+        setTimeout(() => {
+          window.location.href = '/assistant';
+        }, 500);
+      } else {
+        toast.error('Login failed: Invalid response from server');
+      }
     } catch (error) {
-      const message = error.response?.data?.detail || 'Login failed';
-      toast.error(message);
+      console.error('Login error:', error);
+      
+      let message = 'Login failed. Please try again.';
+      
+      if (error.response) {
+        if (error.response.status === 401) {
+          message = 'Incorrect username or password';
+        } else if (error.response.status === 403) {
+          message = 'Account is inactive. Please contact administrator.';
+        } else if (error.response.data) {
+          if (typeof error.response.data === 'string') {
+            message = error.response.data;
+          } else if (error.response.data.detail) {
+            if (typeof error.response.data.detail === 'string') {
+              message = error.response.data.detail;
+            } else if (Array.isArray(error.response.data.detail)) {
+              message = error.response.data.detail.map(err => err.msg || err).join(', ');
+            }
+          }
+        }
+      } else if (error.request) {
+        message = 'Cannot connect to server. Please check your connection.';
+      }
+      
+      toast.error(message, { duration: 4000 });
     } finally {
       setLoading(false);
     }

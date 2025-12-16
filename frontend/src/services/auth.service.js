@@ -13,20 +13,25 @@ const authService = {
    * @returns {Promise<Object>} User data and tokens
    */
   login: async (username, password) => {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-
-    const response = await api.post('/auth/login', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const response = await api.post('/auth/login', {
+      username,
+      password,
     });
 
     if (response.access_token) {
       localStorage.setItem(config.tokenKey, response.access_token);
       localStorage.setItem(config.refreshTokenKey, response.refresh_token);
-      localStorage.setItem(config.userKey, JSON.stringify(response.user));
+      
+      const userData = {
+        username: username,
+        role: username.includes('kapolri') ? 'kapolri' : 
+              username.includes('kapolda') ? 'kapolda' : 'kapolres',
+        full_name: username,
+      };
+      
+      localStorage.setItem(config.userKey, JSON.stringify(userData));
+      
+      return { ...response, user: userData };
     }
 
     return response;
@@ -47,7 +52,16 @@ const authService = {
    */
   getCurrentUser: () => {
     const userStr = localStorage.getItem(config.userKey);
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr || userStr === 'undefined' || userStr === 'null') {
+      return null;
+    }
+    try {
+      return JSON.parse(userStr);
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      localStorage.removeItem(config.userKey);
+      return null;
+    }
   },
 
   /**
