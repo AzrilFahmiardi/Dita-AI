@@ -149,7 +149,6 @@ const VoiceAssistantPage = () => {
             className="text-center text-sm text-gray-400"
           >
             <p>Katakan "Hey Dita" untuk memulai percakapan</p>
-            <p className="mt-1 text-xs">Authenticated as: {user?.full_name || user?.username}</p>
           </motion.div>
         </div>
       </div>

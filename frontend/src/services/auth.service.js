@@ -49,7 +49,25 @@ const authService = {
   /**
    * Logout current user
    */
-  logout: () => {
+  logout: async () => {
+    try {
+      // Call backend logout endpoint to broadcast session event
+      const token = localStorage.getItem(config.tokenKey);
+      if (token) {
+        await fetch(`${config.apiUrl}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error calling logout endpoint:', error);
+      // Continue with local cleanup even if backend call fails
+    }
+    
+    // Clear local storage
     localStorage.removeItem(config.tokenKey);
     localStorage.removeItem(config.refreshTokenKey);
     localStorage.removeItem(config.userKey);

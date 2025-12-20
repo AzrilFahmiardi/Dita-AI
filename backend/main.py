@@ -38,6 +38,7 @@ from auth.schemas import (
 from services.user_service import UserService
 from services.whatsapp_service import WhatsAppService
 from services.audit_service import AuditService
+from session_manager import SessionManager
 
 # Configuration
 DASHBOARD_HOST = '0.0.0.0'
@@ -142,6 +143,22 @@ async def login(
     
     access_token = create_access_token(data={"sub": user.username})
     refresh_token = create_refresh_token(data={"sub": user.username})
+    
+    # Save session to shared file for voice assistant sync
+    SessionManager.save_session(
+        user_id=user.id,
+        username=user.username,
+        token=access_token,
+        role=user.role.name,
+        full_name=user.full_name
+    )
+    
+    # Broadcast login event to voice assistant
+    broadcaster.broadcast_session_event('login', {
+        'username': user.username,
+        'role': user.role.name,
+        'full_name': user.full_name
+    })
     
     return TokenResponse(
         access_token=access_token,
@@ -265,7 +282,36 @@ async def logout(
     db.add(audit_log)
     db.commit()
     
+    # Clear shared session on logout
+    SessionManager.clear_session()
+    
+    # Broadcast logout event to voice assistant
+    broadcaster.broadcast_session_event('logout', {
+        'username': current_user.username
+    })
+    
     return {"message": "Successfully logged out"}
+
+
+@app.get("/auth/active-session")
+async def get_active_session():
+    """
+    Get active session info for voice assistant sync.
+    Returns session data if there's a valid active session.
+    
+    Returns:
+        Session data or None
+    """
+    session = SessionManager.get_session()
+    if session and SessionManager.is_session_valid():
+        return {
+            "active": True,
+            "username": session.get('username'),
+            "role": session.get('role'),
+            "full_name": session.get('full_name'),
+            "token": session.get('token')
+        }
+    return {"active": False}
 
 
 # User Management Endpoints

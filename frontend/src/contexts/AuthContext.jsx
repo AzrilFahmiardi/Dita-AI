@@ -21,8 +21,8 @@ export const AuthProvider = ({ children }) => {
     return response;
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     console.log('AuthContext: User logged out');
     setUser(null);
   };

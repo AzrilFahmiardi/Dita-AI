@@ -5,8 +5,10 @@ from vad_recorder import VoiceActivityRecorder
 from tts import DitaTTS
 from config_manager import get_vad_config, get_tts_config, get_config
 from auth import authenticate_terminal_user, DitaAuthClient
+from session_monitor import SessionMonitor
 import sys
 import os
+import threading
 
 # Import broadcast_client from sibling backend directory
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
@@ -18,26 +20,33 @@ except ImportError:
 
 print("Initializing Dita...")
 
+# Global state
+session_active = threading.Event()
+auth_client = None
+dita_rag = None
+
 # Initialize authentication
 auth_config = get_config().get('auth', {})
 auth_required = auth_config.get('required', True)
 backend_url = auth_config.get('backend_url', 'http://localhost:8000')
 
-auth_client = None
+# Don't prompt for login - wait for frontend session
 if auth_required:
-    print("\nAuthentication required for Dita Voice Assistant")
-    auth_client = authenticate_terminal_user(backend_url)
+    print("\nAuthentication: Monitoring frontend sessions")
+    print("Please login via dashboard at http://localhost:5173")
+    auth_client = DitaAuthClient(backend_url)
     
-    if not auth_client:
-        print("\n✗ Authentication failed. Exiting...")
-        sys.exit(1)
-    
-    print(f"\nWelcome, {auth_client.user_context['full_name']}!")
-    print(f"Role: {auth_client.user_context['role']['name']}")
+    # Check if already logged in
+    active_session = auth_client.check_active_session()
+    if active_session:
+        session_active.set()
+        dita_rag = DitaRAGAssistant(auth_client=auth_client)
+    else:
+        print("⏸  Waiting for login...")
 else:
     print("\n⚠ Authentication disabled (running in demo mode)")
-
-dita_rag = DitaRAGAssistant(auth_client=auth_client)
+    dita_rag = DitaRAGAssistant(auth_client=None)
+    session_active.set()
 
 vad_config = get_vad_config()
 use_vad = vad_config.get('enabled', False)
@@ -55,11 +64,19 @@ if use_tts:
 
 def run_rag(query):
     """Process query using RAG assistant"""
+    global dita_rag
+    
+    # Check if RAG is initialized (user logged in)
+    if not dita_rag:
+        print("\n✗ No active session. Cannot process query.")
+        broadcast_client.update_state("error")
+        return {"answer": "No active session", "status": "error"}
+    
     # Check token validity before processing
     if auth_client and not auth_client.validate_token():
-        print("\n✗ Session expired. Please restart Dita and login again.")
+        print("\n✗ Session expired. Please login again via dashboard.")
         broadcast_client.update_state("error")
-        broadcast_client.update_response("Session expired. Please restart and login again.")
+        broadcast_client.update_response("Session expired. Please login again.")
         return {"answer": "Session expired", "status": "error"}
     
     response = dita_rag.ask(query)
@@ -87,6 +104,8 @@ def run_rag(query):
     return response
 
 def main():
+    global auth_client
+    
     print("Dita RAG Assistant ready!")
     print("Ask me about news and current information!")
     
@@ -94,14 +113,71 @@ def main():
     from backend.broadcast_client import DASHBOARD_URL
     print(f"Dashboard available at {DASHBOARD_URL}")
     
-    try:
-        # Set idle state at start
-        broadcast_client.update_state("idle")
+    # Setup session monitoring callbacks
+    def on_login(user_data):
+        global auth_client, dita_rag
+        print(f"\n✓ User logged in: {user_data.get('full_name')} ({user_data.get('role')})")
+        session_active.set()
         
+        # Reinitialize auth client and RAG with active session
+        auth_client = DitaAuthClient(backend_url)
+        auth_client.check_active_session()
+        dita_rag = DitaRAGAssistant(auth_client=auth_client)
+        
+        broadcast_client.update_state("listening")
+        print("🎙️  Dita is now listening for wake word...")
+    
+    def on_logout(user_data):
+        global auth_client, dita_rag
+        print(f"\n✗ User logged out: {user_data.get('username')}")
+        session_active.clear()
+        auth_client = None
+        dita_rag = None
+        broadcast_client.update_state("paused")
+        print("⏸  Dita paused. Waiting for login...")
+    
+    def on_switch(user_data):
+        global auth_client, dita_rag
+        print(f"\n↻ User switched: {user_data.get('full_name')} ({user_data.get('role')})")
+        # Update auth client and RAG with new session
+        auth_client = DitaAuthClient(backend_url)
+        auth_client.check_active_session()
+        dita_rag = DitaRAGAssistant(auth_client=auth_client)
+        print("✓ Context updated for new user")
+
+    
+    # Start session monitor
+    session_monitor = SessionMonitor(backend_url)
+    session_monitor.on_login = on_login
+    session_monitor.on_logout = on_logout
+    session_monitor.on_switch = on_switch
+    session_monitor.start()
+    
+    # Check initial state
+    if session_active.is_set():
+        print(f"\n✓ Active session detected!")
+        print(f"Welcome, {auth_client.user_context['full_name']}!")
+        print(f"Role: {auth_client.user_context['role']['name']}")
+        print("🎙️  Dita is listening for wake word...")
+        broadcast_client.update_state("listening")
+    else:
+        print("\n⏸  No active session. Waiting for login from dashboard...")
+        broadcast_client.update_state("paused")
+    
+    try:
         while True:
+            # Wait for active session
+            session_active.wait()
+            
             # State: Listening for wake word
             broadcast_client.update_state("listening")
-            wait_for_wake_word()
+            wake_word_detected = wait_for_wake_word(stop_event=session_active)
+            
+            # If wake word detection was stopped (logout), restart loop
+            if not wake_word_detected:
+                broadcast_client.update_state("paused")
+                print("⏸  Wake word detection stopped. Waiting for login...")
+                continue
             
             # State: Wake word detected
             broadcast_client.update_state("wake_word_detected")
@@ -133,6 +209,7 @@ def main():
             run_rag(user_text)
     except KeyboardInterrupt:
         print("\n\nShutting down Dita...")
+        session_monitor.stop()
         if auth_client:
             print("Logging out...")
             auth_client.logout()

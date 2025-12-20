@@ -14,7 +14,16 @@ ACCESS_KEY = get_api_key('PORCUPINE_ACCESS_KEY')
 MODEL_PATH = wakeword_config['model_path']
 SENSITIVITY = wakeword_config.get('sensitivity', 0.5)
 
-def wait_for_wake_word():
+def wait_for_wake_word(stop_event=None):
+    """
+    Wait for wake word detection.
+    
+    Args:
+        stop_event: Threading Event to signal stop (optional)
+    
+    Returns:
+        True if wake word detected, False if stopped by event
+    """
     print("Menunggu kata pemicu 'Hey Dita'...")
 
     porcupine = pvporcupine.create(
@@ -34,6 +43,11 @@ def wait_for_wake_word():
 
     try:
         while True:
+            # Check if we should stop (user logged out)
+            if stop_event and not stop_event.is_set():
+                print("Wake word detection stopped (session ended)")
+                return False
+            
             pcm = stream.read(porcupine.frame_length, exception_on_overflow=False)
             pcm_unpacked = struct.unpack_from("h" * porcupine.frame_length, pcm)
 
@@ -43,6 +57,7 @@ def wait_for_wake_word():
 
     except KeyboardInterrupt:
         print("Dihentikan oleh user.")
+        return False
     finally:
         stream.stop_stream()
         stream.close()

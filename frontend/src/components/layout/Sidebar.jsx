@@ -16,8 +16,8 @@ const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { user, logout, hasPermission } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     toast.success('Logged out successfully');
     navigate('/login');
     onClose();

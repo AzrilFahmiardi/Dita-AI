@@ -34,6 +34,38 @@ class DitaAuthClient:
         self.user_context: Optional[Dict[str, Any]] = None
         self.token_expiry: Optional[datetime] = None
     
+    def check_active_session(self) -> Optional[Dict[str, Any]]:
+        """
+        Check if there's an active session from frontend/other source
+        
+        Returns:
+            User context if active session exists, None otherwise
+        """
+        try:
+            response = requests.get(
+                f"{self.backend_url}/auth/active-session",
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('active'):
+                    self.access_token = data.get('token')
+                    self.token_expiry = datetime.now() + timedelta(minutes=15)
+                    
+                    # Get full user profile with this token
+                    self.user_context = self._get_user_profile()
+                    
+                    print("✓ Using active session from frontend")
+                    print(f"  User: {data.get('full_name')} ({data.get('username')})")
+                    print(f"  Role: {data.get('role')}")
+                    
+                    return self.user_context
+        except requests.RequestException:
+            pass
+        
+        return None
+    
     def authenticate(self, username: str, password: str) -> Dict[str, Any]:
         """
         Authenticate user with username and password
@@ -339,13 +371,20 @@ def authenticate_terminal_user(backend_url: str) -> Optional[DitaAuthClient]:
     Returns:
         Authenticated DitaAuthClient instance or None if authentication failed
     """
+    auth_client = DitaAuthClient(backend_url)
+    
+    # Check for active session first
+    print("\nChecking for active session...")
+    active_session = auth_client.check_active_session()
+    if active_session:
+        return auth_client
+    
+    # No active session, prompt for login
     print("\n" + "="*60)
     print("DITA VOICE ASSISTANT - AUTHENTICATION")
     print("="*60)
     print(f"Backend API: {backend_url}")
     print()
-    
-    auth_client = DitaAuthClient(backend_url)
     
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
