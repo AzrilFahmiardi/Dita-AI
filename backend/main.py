@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from broadcaster import broadcaster
 from database import get_db
-from database.models import User, AuditLog, WhatsAppContact
+from database.models import User, AuditLog, WhatsAppContact, Role
 from auth.security import verify_password, create_access_token, create_refresh_token, verify_token
 from auth.dependencies import get_current_active_user, require_permission, require_role_level
 from auth.schemas import (
@@ -31,12 +31,14 @@ from auth.schemas import (
     AssignContactRequest,
     UserListResponse,
     AuditLogResponse,
+    PaginatedAuditLogsResponse,
     MessageCreateRequest,
     MessageResponse
 )
 from services.user_service import UserService
 from services.whatsapp_service import WhatsAppService
 from services.audit_service import AuditService
+from session_manager import SessionManager
 
 # Configuration
 DASHBOARD_HOST = '0.0.0.0'
@@ -141,6 +143,22 @@ async def login(
     
     access_token = create_access_token(data={"sub": user.username})
     refresh_token = create_refresh_token(data={"sub": user.username})
+    
+    # Save session to shared file for voice assistant sync
+    SessionManager.save_session(
+        user_id=user.id,
+        username=user.username,
+        token=access_token,
+        role=user.role.name,
+        full_name=user.full_name
+    )
+    
+    # Broadcast login event to voice assistant
+    broadcaster.broadcast_session_event('login', {
+        'username': user.username,
+        'role': user.role.name,
+        'full_name': user.full_name
+    })
     
     return TokenResponse(
         access_token=access_token,
@@ -264,7 +282,36 @@ async def logout(
     db.add(audit_log)
     db.commit()
     
+    # Clear shared session on logout
+    SessionManager.clear_session()
+    
+    # Broadcast logout event to voice assistant
+    broadcaster.broadcast_session_event('logout', {
+        'username': current_user.username
+    })
+    
     return {"message": "Successfully logged out"}
+
+
+@app.get("/auth/active-session")
+async def get_active_session():
+    """
+    Get active session info for voice assistant sync.
+    Returns session data if there's a valid active session.
+    
+    Returns:
+        Session data or None
+    """
+    session = SessionManager.get_session()
+    if session and SessionManager.is_session_valid():
+        return {
+            "active": True,
+            "username": session.get('username'),
+            "role": session.get('role'),
+            "full_name": session.get('full_name'),
+            "token": session.get('token')
+        }
+    return {"active": False}
 
 
 # User Management Endpoints
@@ -277,8 +324,8 @@ async def list_users(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get list of users (requires authentication)"""
-    users = UserService.get_users(db, skip, limit, role_id, is_active)
+    """Get list of users with role-based scoping"""
+    users = UserService.get_users(db, current_user, skip, limit, role_id, is_active)
     return [
         UserListResponse(
             id=user.id,
@@ -443,6 +490,42 @@ async def update_user(
     return {"message": "User updated successfully"}
 
 
+@app.delete("/api/users/{user_id}", dependencies=[Depends(require_role_level(1))])
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete user (KAPOLRI only)"""
+    # Prevent deleting self
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    # Get user info before deletion for audit log
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    deleted_username = user.username
+    
+    # Delete user
+    success = UserService.delete_user(db, user_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log action
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="delete",
+        resource="user",
+        details={"deleted_user_id": user_id, "username": deleted_username}
+    )
+    
+    return {"message": "User deleted successfully"}
+
+
 @app.post("/api/users/{user_id}/change-password")
 async def change_password(
     user_id: int,
@@ -479,22 +562,13 @@ async def list_contacts(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's assigned WhatsApp contacts only"""
-    # Get user_contacts (assignment records) for this user
-    user_contacts = WhatsAppService.get_user_contacts(db, current_user.id)
-    
-    print(f"[DEBUG] User {current_user.username} has {len(user_contacts)} user_contact records")
-    
-    # Extract WhatsAppContact objects from UserContact relationships
-    # and filter by can_send permission
-    contacts = []
-    for uc in user_contacts:
-        print(f"[DEBUG] UserContact: contact_id={uc.contact_id}, can_send={uc.can_send}")
-        if uc.can_send:  # Only include contacts user can send to
-            contact = uc.contact  # Get WhatsAppContact from relationship
-            print(f"[DEBUG] Contact: id={contact.id}, name={contact.name}, active={contact.is_active}")
-            if is_active is None or contact.is_active == is_active:
-                contacts.append(contact)
+    """Get WhatsApp contacts with role-based scoping"""
+    # KAPOLRI: Get all contacts
+    if current_user.role.level == 1:
+        contacts = WhatsAppService.get_all_contacts(db, None, is_active, skip, limit)
+    else:
+        # KAPOLDA/KAPOLRES: Get assigned contacts only
+        contacts = WhatsAppService.get_all_contacts(db, current_user, is_active, skip, limit)
     
     print(f"[DEBUG] Returning {len(contacts)} contacts")
     return contacts
@@ -517,12 +591,20 @@ async def create_contact(
         is_active=contact_data.is_active
     )
     
+    # Auto-assign contact to creator with can_send permission
+    WhatsAppService.assign_contact_to_user(
+        db,
+        user_id=current_user.id,
+        contact_id=contact.id,
+        can_send=True
+    )
+    
     AuditService.log_action(
         db,
         user_id=current_user.id,
         action="create",
         resource="contact",
-        details={"contact_id": contact.id, "phone": contact.phone_number}
+        details={"contact_id": contact.id, "phone": contact.phone_number, "auto_assigned": True}
     )
     
     return contact
@@ -555,6 +637,29 @@ async def update_contact(
     )
     
     return {"message": "Contact updated successfully"}
+
+
+@app.delete("/api/contacts/{contact_id}", dependencies=[Depends(require_role_level(2))])
+async def delete_contact(
+    contact_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete WhatsApp contact (KAPOLRI/KAPOLDA)"""
+    success = WhatsAppService.delete_contact(db, contact_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    AuditService.log_action(
+        db,
+        user_id=current_user.id,
+        action="delete",
+        resource="contact",
+        details={"contact_id": contact_id}
+    )
+    
+    return {"message": "Contact deleted successfully"}
 
 
 @app.post("/api/contacts/assign", dependencies=[Depends(require_role_level(1))])
@@ -590,7 +695,7 @@ async def assign_contact(
 
 
 # Audit Log Endpoints
-@app.get("/api/audit-logs", response_model=List[AuditLogResponse], dependencies=[Depends(require_role_level(2))])
+@app.get("/api/audit-logs")
 async def get_audit_logs(
     skip: int = 0,
     limit: int = 100,
@@ -600,9 +705,19 @@ async def get_audit_logs(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get audit logs (KAPOLRI/KAPOLDA)"""
-    logs = AuditService.get_all_logs(db, skip, limit, action, resource, days)
-    return logs
+    """Get audit logs with role-based scoping"""
+    logs, total = AuditService.get_all_logs(db, current_user, skip, limit, action, resource, days)
+    
+    page = (skip // limit) + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 1
+    
+    return {
+        "items": logs,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
 
 
 @app.get("/api/audit-logs/user/{user_id}", response_model=List[AuditLogResponse])
@@ -619,6 +734,62 @@ async def get_user_audit_logs(
     
     logs = AuditService.get_user_logs(db, user_id, skip, limit)
     return logs
+
+
+# Role Endpoints
+@app.get("/api/roles", response_model=List[RoleSchema])
+async def get_all_roles(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all roles with their permissions"""
+    roles = db.query(Role).order_by(Role.level).all()
+    return roles
+
+
+@app.put("/api/roles/{role_id}/permissions", dependencies=[Depends(require_role_level(1))])
+async def update_role_permissions(
+    role_id: int,
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update role permissions (KAPOLRI only)"""
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    permissions = request.get("permissions", {})
+    
+    # Validate permission keys
+    valid_permissions = {"manage_users", "send_whatsapp", "manage_contacts", "export_data"}
+    for key in permissions.keys():
+        if key not in valid_permissions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid permission: {key}. Valid permissions: {valid_permissions}"
+            )
+    
+    # Update permissions
+    role.permissions = permissions
+    db.commit()
+    db.refresh(role)
+    
+    # Log the action
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        action="update",
+        resource="role",
+        details={
+            "role_id": role_id,
+            "role_name": role.name,
+            "permissions": permissions
+        }
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"message": "Permissions updated successfully", "role": role}
 
 
 @app.websocket("/ws/dashboard")

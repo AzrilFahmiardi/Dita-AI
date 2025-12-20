@@ -3,12 +3,13 @@ import { motion } from 'framer-motion';
 export const VoiceOrb = ({ state }) => {
   const getOrbColor = () => {
     const colors = {
-      idle: 'from-indigo-400 to-purple-500',
-      listening: 'from-green-400 to-green-600',
-      wake_word_detected: 'from-yellow-400 to-orange-500',
-      recording: 'from-blue-400 to-blue-600',
-      processing: 'from-purple-400 to-pink-500',
-      speaking: 'from-purple-500 to-purple-700',
+      idle: 'from-slate-400 to-slate-500',           
+      listening: 'from-blue-400 to-blue-600',       
+      wake_word_detected: 'from-blue-500 to-blue-700', 
+      recording: 'from-blue-500 to-blue-700',       
+      processing: 'from-blue-600 to-blue-800',       
+      speaking: 'from-blue-500 to-blue-700',        
+      paused: 'from-slate-300 to-slate-400',        
     };
     return colors[state] || colors.idle;
   };
@@ -35,8 +36,7 @@ export const VoiceOrb = ({ state }) => {
 
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
-      {/* Outer glow rings */}
-      {state !== 'idle' && (
+      {state !== 'idle' && state !== 'paused' && (
         <>
           <motion.div
             className="absolute inset-0 rounded-full blur-xl"
@@ -50,7 +50,7 @@ export const VoiceOrb = ({ state }) => {
               ease: "easeInOut",
             }}
             style={{
-              background: `radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, rgba(168, 85, 247, 0) 70%)`,
+              background: `radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, rgba(59, 130, 246, 0) 70%)`,
             }}
           />
 
@@ -67,7 +67,7 @@ export const VoiceOrb = ({ state }) => {
               delay: 0.2,
             }}
             style={{
-              background: `radial-gradient(circle, rgba(147, 51, 234, 0.3) 0%, rgba(147, 51, 234, 0) 70%)`,
+              background: `radial-gradient(circle, rgba(37, 99, 235, 0.3) 0%, rgba(37, 99, 235, 0) 70%)`,
             }}
           />
         </>
@@ -85,13 +85,10 @@ export const VoiceOrb = ({ state }) => {
           ease: "easeInOut",
         }}
       >
-        {/* Inner glow */}
         <div className="absolute inset-4 rounded-full bg-white/20 blur-md" />
         
-        {/* Highlight */}
         <div className="absolute top-8 left-8 w-16 h-16 rounded-full bg-white/40 blur-xl" />
 
-        {/* Wave circles for speaking state */}
         {state === 'speaking' && (
           <>
             <motion.div
@@ -135,7 +132,6 @@ export const VoiceOrb = ({ state }) => {
           </>
         )}
 
-        {/* Recording pulse */}
         {state === 'recording' && (
           <motion.div
             className="absolute inset-0 rounded-full bg-white/20"

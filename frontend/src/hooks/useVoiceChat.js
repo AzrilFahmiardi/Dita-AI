@@ -20,10 +20,9 @@ export const useVoiceChat = () => {
       const ws = new WebSocket(WS_URL);
       
       ws.onopen = () => {
-        console.log('✅ Connected to Dita Dashboard at', WS_URL);
+        console.log('Connected to Dita Dashboard at', WS_URL);
         setConnectionStatus('connected');
         
-        // Send ping at configured interval to keep connection alive
         const pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping');
@@ -37,7 +36,7 @@ export const useVoiceChat = () => {
         try {
           const data = JSON.parse(event.data);
           
-          console.log('📨 Received:', data);
+          console.log('Received:', data);
           
           switch (data.type) {
             case 'state':
@@ -66,28 +65,27 @@ export const useVoiceChat = () => {
       };
       
       ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        console.error('WebSocket error:', error);
         setConnectionStatus('error');
       };
       
       ws.onclose = () => {
-        console.log('❌ Disconnected from Dita Dashboard');
+        console.log('Disconnected from Dita Dashboard');
         setConnectionStatus('disconnected');
         
         if (ws.pingInterval) {
           clearInterval(ws.pingInterval);
         }
         
-        // Attempt reconnect at configured interval
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('🔄 Attempting to reconnect...');
+          console.log('Attempting to reconnect...');
           connect();
         }, RECONNECT_INTERVAL);
       };
       
       wsRef.current = ws;
     } catch (error) {
-      console.error('❌ Connection error:', error);
+      console.error('Connection error:', error);
       setConnectionStatus('error');
       
       // Retry connection at configured interval

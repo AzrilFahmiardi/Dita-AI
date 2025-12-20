@@ -27,22 +27,33 @@ class UserService:
     @staticmethod
     def get_users(
         db: Session,
+        current_user: Optional[User] = None,
         skip: int = 0,
         limit: int = 100,
         role_id: Optional[int] = None,
         is_active: Optional[bool] = None
     ) -> List[User]:
         """
-        Get list of users with optional filters
+        Get list of users with optional filters and role-based scoping
         
         Args:
             db: Database session
+            current_user: Current authenticated user (for scoping)
             skip: Number of records to skip
             limit: Maximum number of records to return
             role_id: Filter by role ID
             is_active: Filter by active status
         """
         query = db.query(User)
+        
+        # Apply role-based scoping
+        if current_user and current_user.role:
+            if current_user.role.level == 2:
+                # KAPOLDA: Only see KAPOLRES (level 3)
+                query = query.join(Role).filter(Role.level > current_user.role.level)
+            elif current_user.role.level >= 3:
+                # KAPOLRES and below: No access to user list
+                return []
         
         if role_id is not None:
             query = query.filter(User.role_id == role_id)
@@ -169,6 +180,27 @@ class UserService:
         user.password_hash = get_password_hash(new_password)
         user.updated_at = datetime.utcnow()
         
+        db.commit()
+        
+        return True
+    
+    @staticmethod
+    def delete_user(db: Session, user_id: int) -> bool:
+        """
+        Delete user account
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        
+        db.delete(user)
         db.commit()
         
         return True

@@ -124,6 +124,16 @@ class DitaBroadcaster:
         self.broadcast_sync({
             "type": "clear"
         })
+    
+    def broadcast_session_event(self, event: str, user_data: dict = None):
+        """Broadcast session events (login, logout, switch)"""
+        data = {
+            "type": "session",
+            "event": event,  # 'login', 'logout', 'switch'
+            "user": user_data
+        }
+        self.broadcast_sync(data)
+        print(f"Broadcasting session event: {event}")
 
 
 # Global broadcaster instance
