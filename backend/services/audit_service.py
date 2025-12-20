@@ -87,7 +87,7 @@ class AuditService:
         action: Optional[str] = None,
         resource: Optional[str] = None,
         days: Optional[int] = None
-    ) -> List[AuditLog]:
+    ) -> tuple[List[AuditLog], int]:
         """
         Get all audit logs with optional filters
         
@@ -98,6 +98,9 @@ class AuditService:
             action: Filter by action
             resource: Filter by resource
             days: Filter by last N days
+            
+        Returns:
+            Tuple of (logs, total_count)
         """
         query = db.query(AuditLog)
         
@@ -111,9 +114,12 @@ class AuditService:
             since = datetime.utcnow() - timedelta(days=days)
             query = query.filter(AuditLog.timestamp >= since)
         
-        return query.order_by(
+        total = query.count()
+        logs = query.order_by(
             AuditLog.timestamp.desc()
         ).offset(skip).limit(limit).all()
+        
+        return logs, total
     
     @staticmethod
     def get_recent_activity(

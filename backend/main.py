@@ -31,6 +31,7 @@ from auth.schemas import (
     AssignContactRequest,
     UserListResponse,
     AuditLogResponse,
+    PaginatedAuditLogsResponse,
     MessageCreateRequest,
     MessageResponse
 )
@@ -657,7 +658,7 @@ async def assign_contact(
 
 
 # Audit Log Endpoints
-@app.get("/api/audit-logs", response_model=List[AuditLogResponse], dependencies=[Depends(require_role_level(2))])
+@app.get("/api/audit-logs", dependencies=[Depends(require_role_level(2))])
 async def get_audit_logs(
     skip: int = 0,
     limit: int = 100,
@@ -668,8 +669,18 @@ async def get_audit_logs(
     db: Session = Depends(get_db)
 ):
     """Get audit logs (KAPOLRI/KAPOLDA)"""
-    logs = AuditService.get_all_logs(db, skip, limit, action, resource, days)
-    return logs
+    logs, total = AuditService.get_all_logs(db, skip, limit, action, resource, days)
+    
+    page = (skip // limit) + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 1
+    
+    return {
+        "items": logs,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
 
 
 @app.get("/api/audit-logs/user/{user_id}", response_model=List[AuditLogResponse])

@@ -144,3 +144,11 @@ class AuditLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaginatedAuditLogsResponse(BaseModel):
+    items: List[AuditLogResponse]
+    total: int
+    page: int
+    limit: int
+    total_pages: int

@@ -8,14 +8,11 @@ const auditService = {
   /**
    * Fetch audit logs with optional filters
    * @param {Object} params - Query parameters
-   * @param {number} params.user_id - Filter by user ID
    * @param {string} params.action - Filter by action type
-   * @param {string} params.resource_type - Filter by resource type
-   * @param {string} params.status - Filter by status
-   * @param {string} params.start_date - Filter by start date
-   * @param {string} params.end_date - Filter by end date
+   * @param {string} params.resource - Filter by resource type
+   * @param {number} params.days - Filter by last N days
+   * @param {number} params.skip - Pagination skip
    * @param {number} params.limit - Limit results
-   * @param {number} params.offset - Offset for pagination
    * @returns {Promise<Array>} List of audit logs
    */
   getAuditLogs: async (params = {}) => {

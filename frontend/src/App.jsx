@@ -8,6 +8,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import KapolriDashboard from './pages/kapolri/Dashboard';
 import UserManagement from './pages/kapolri/UserManagement';
 import ContactManagement from './pages/kapolri/ContactManagement';
+import AuditLogs from './pages/kapolri/AuditLogs';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
               <Route path="/kapolri/dashboard" element={<KapolriDashboard />} />
               <Route path="/kapolri/users" element={<UserManagement />} />
               <Route path="/kapolri/contacts" element={<ContactManagement />} />
+              <Route path="/kapolri/audit-logs" element={<AuditLogs />} />
             </Route>
           </Route>
 
