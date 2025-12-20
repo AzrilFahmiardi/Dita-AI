@@ -34,7 +34,7 @@ const authService = {
     const userData = {
       id: userProfile.id,
       username: userProfile.username,
-      role: userProfile.role.name,
+      role: userProfile.role, // Save full role object with permissions
       full_name: userProfile.full_name,
       nrp: userProfile.nrp,
       is_active: userProfile.is_active,

@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from database.models import AuditLog, User
+from database.models import AuditLog, User, Role
 
 
 class AuditService:
@@ -82,6 +82,7 @@ class AuditService:
     @staticmethod
     def get_all_logs(
         db: Session,
+        current_user: Optional[User] = None,
         skip: int = 0,
         limit: int = 100,
         action: Optional[str] = None,
@@ -89,10 +90,11 @@ class AuditService:
         days: Optional[int] = None
     ) -> tuple[List[AuditLog], int]:
         """
-        Get all audit logs with optional filters
+        Get audit logs with role-based scoping
         
         Args:
             db: Database session
+            current_user: Current authenticated user (for scoping)
             skip: Skip records
             limit: Limit results
             action: Filter by action
@@ -103,6 +105,21 @@ class AuditService:
             Tuple of (logs, total_count)
         """
         query = db.query(AuditLog)
+        
+        # Apply role-based scoping
+        if current_user and current_user.role:
+            if current_user.role.level >= 3:
+                # KAPOLRES: Only own logs
+                query = query.filter(AuditLog.user_id == current_user.id)
+            elif current_user.role.level == 2:
+                # KAPOLDA: Logs from managed users only
+                # Get all users with level > current user level (level 3 = KAPOLRES)
+                managed_users_query = db.query(User.id).join(Role).filter(
+                    Role.level > current_user.role.level
+                )
+                managed_user_ids = [u.id for u in managed_users_query.all()]
+                managed_user_ids.append(current_user.id)  # Include self
+                query = query.filter(AuditLog.user_id.in_(managed_user_ids))
         
         if action:
             query = query.filter(AuditLog.action == action)

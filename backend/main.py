@@ -278,8 +278,8 @@ async def list_users(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get list of users (requires authentication)"""
-    users = UserService.get_users(db, skip, limit, role_id, is_active)
+    """Get list of users with role-based scoping"""
+    users = UserService.get_users(db, current_user, skip, limit, role_id, is_active)
     return [
         UserListResponse(
             id=user.id,
@@ -516,22 +516,13 @@ async def list_contacts(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's assigned WhatsApp contacts only"""
-    # Get user_contacts (assignment records) for this user
-    user_contacts = WhatsAppService.get_user_contacts(db, current_user.id)
-    
-    print(f"[DEBUG] User {current_user.username} has {len(user_contacts)} user_contact records")
-    
-    # Extract WhatsAppContact objects from UserContact relationships
-    # and filter by can_send permission
-    contacts = []
-    for uc in user_contacts:
-        print(f"[DEBUG] UserContact: contact_id={uc.contact_id}, can_send={uc.can_send}")
-        if uc.can_send:  # Only include contacts user can send to
-            contact = uc.contact  # Get WhatsAppContact from relationship
-            print(f"[DEBUG] Contact: id={contact.id}, name={contact.name}, active={contact.is_active}")
-            if is_active is None or contact.is_active == is_active:
-                contacts.append(contact)
+    """Get WhatsApp contacts with role-based scoping"""
+    # KAPOLRI: Get all contacts
+    if current_user.role.level == 1:
+        contacts = WhatsAppService.get_all_contacts(db, None, is_active, skip, limit)
+    else:
+        # KAPOLDA/KAPOLRES: Get assigned contacts only
+        contacts = WhatsAppService.get_all_contacts(db, current_user, is_active, skip, limit)
     
     print(f"[DEBUG] Returning {len(contacts)} contacts")
     return contacts
@@ -658,7 +649,7 @@ async def assign_contact(
 
 
 # Audit Log Endpoints
-@app.get("/api/audit-logs", dependencies=[Depends(require_role_level(2))])
+@app.get("/api/audit-logs")
 async def get_audit_logs(
     skip: int = 0,
     limit: int = 100,
@@ -668,8 +659,8 @@ async def get_audit_logs(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get audit logs (KAPOLRI/KAPOLDA)"""
-    logs, total = AuditService.get_all_logs(db, skip, limit, action, resource, days)
+    """Get audit logs with role-based scoping"""
+    logs, total = AuditService.get_all_logs(db, current_user, skip, limit, action, resource, days)
     
     page = (skip // limit) + 1 if limit > 0 else 1
     total_pages = (total + limit - 1) // limit if limit > 0 else 1

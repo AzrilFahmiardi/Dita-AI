@@ -23,7 +23,7 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   
   // Determine base path based on user role
-  const basePath = user?.role === 'KAPOLRI' ? '/admin' : '/dashboard';
+  const basePath = user?.role?.name === 'KAPOLRI' ? '/admin' : '/dashboard';
   
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -93,52 +93,58 @@ const DashboardPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end gap-3">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => navigate(`${basePath}/users`)}
-        >
-          <PlusIcon className="w-4 h-4" />
-          <span className="ml-2">Create User</span>
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => navigate(`${basePath}/contacts`)}
-        >
-          <PlusIcon className="w-4 h-4" />
-          <span className="ml-2">Add Contact</span>
-        </Button>
+        {hasPermission('manage_users') && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate(`${basePath}/users`)}
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span className="ml-2">Create User</span>
+          </Button>
+        )}
+        {hasPermission('manage_contacts') && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate(`${basePath}/contacts`)}
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span className="ml-2">Add Contact</span>
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate(`${basePath}/users`)}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Total Users</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">
-                {stats.totalUsers}
-              </p>
-              <div className="mt-3 space-y-1">
-                <p className="text-xs text-slate-600">
-                  KAPOLRI: {stats.usersByRole.KAPOLRI}
+        {hasPermission('manage_users') && (
+          <Card
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate(`${basePath}/users`)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">Total Users</p>
+                <p className="text-3xl font-bold text-slate-900 mt-2">
+                  {stats.totalUsers}
                 </p>
-                <p className="text-xs text-slate-600">
-                  KAPOLDA: {stats.usersByRole.KAPOLDA}
-                </p>
-                <p className="text-xs text-slate-600">
-                  KAPOLRES: {stats.usersByRole.KAPOLRES}
-                </p>
+                <div className="mt-3 space-y-1">
+                  <p className="text-xs text-slate-600">
+                    KAPOLRI: {stats.usersByRole.KAPOLRI}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    KAPOLDA: {stats.usersByRole.KAPOLDA}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    KAPOLRES: {stats.usersByRole.KAPOLRES}
+                  </p>
+                </div>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <UsersIcon className="w-6 h-6 text-blue-600" />
               </div>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <UsersIcon className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"

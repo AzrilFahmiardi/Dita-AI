@@ -38,31 +38,17 @@ const DashboardLayout = () => {
     ];
 
     // Determine dashboard path based on role
-    const dashboardPath = user.role === 'KAPOLRI' ? '/admin/dashboard' : '/dashboard';
-    const basePath = user.role === 'KAPOLRI' ? '/admin' : '/dashboard';
+    const dashboardPath = user.role?.name === 'KAPOLRI' ? '/admin/dashboard' : '/dashboard';
+    const basePath = user.role?.name === 'KAPOLRI' ? '/admin' : '/dashboard';
 
-    // Build menu items dynamically based on permissions
+    // Build menu items - SAME for ALL roles
     const menuItems = [
       ...baseItems,
       { name: 'Dashboard', path: dashboardPath, icon: HomeIcon },
+      { name: 'User Management', path: `${basePath}/users`, icon: UsersIcon },
+      { name: 'Contact Management', path: `${basePath}/contacts`, icon: PhoneIcon },
+      { name: 'Audit Logs', path: `${basePath}/audit-logs`, icon: ClipboardDocumentListIcon }
     ];
-
-    // Add User Management if user has permission
-    if (user.role?.permissions?.manage_users || user.role === 'KAPOLRI') {
-      menuItems.push({ name: 'User Management', path: `${basePath}/users`, icon: UsersIcon });
-    }
-
-    // Add Contact Management if user has permission
-    if (user.role?.permissions?.manage_contacts || user.role === 'KAPOLRI') {
-      menuItems.push({ name: 'Contact Management', path: `${basePath}/contacts`, icon: PhoneIcon });
-    }
-
-    // Add Audit Logs (all roles can view, but scoped)
-    menuItems.push({ 
-      name: 'Audit Logs', 
-      path: `${basePath}/audit-logs`, 
-      icon: ClipboardDocumentListIcon 
-    });
 
     console.log('DashboardLayout: Generated menu items:', menuItems);
     return menuItems;
@@ -90,7 +76,7 @@ const DashboardLayout = () => {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-900 truncate">{user?.full_name}</p>
-            <Badge role={user?.role} />
+            <Badge role={user?.role?.name} />
           </div>
         </div>
       </div>
@@ -170,7 +156,7 @@ const DashboardLayout = () => {
             <div className="flex items-center space-x-4">
               <div className="hidden md:flex items-center space-x-3">
                 <span className="text-sm font-medium text-slate-900">{user?.full_name}</span>
-                <Badge role={user?.role} />
+                <Badge role={user?.role?.name} />
               </div>
             </div>
           </div>

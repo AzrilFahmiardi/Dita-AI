@@ -22,25 +22,39 @@ class WhatsAppService:
     @staticmethod
     def get_all_contacts(
         db: Session,
+        current_user: Optional[User] = None,
         is_active: Optional[bool] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[WhatsAppContact]:
         """
-        Get all WhatsApp contacts
+        Get WhatsApp contacts with role-based scoping
         
         Args:
             db: Database session
+            current_user: Current authenticated user (for scoping)
             is_active: Filter by active status
             skip: Skip records
             limit: Limit results
         """
         query = db.query(WhatsAppContact)
         
+        # Apply role-based scoping
+        if current_user and current_user.role:
+            if current_user.role.level >= 3:
+                # KAPOLRES: Only assigned contacts
+                query = query.join(UserContact).filter(UserContact.user_id == current_user.id)
+            elif current_user.role.level == 2:
+                # KAPOLDA: Contacts they created or assigned to them/their managed users
+                # For now, show contacts they have access to
+                query = query.join(UserContact).filter(
+                    UserContact.user_id == current_user.id
+                )
+        
         if is_active is not None:
             query = query.filter(WhatsAppContact.is_active == is_active)
         
-        return query.offset(skip).limit(limit).all()
+        return query.distinct().offset(skip).limit(limit).all()
     
     @staticmethod
     def get_user_contacts(db: Session, user_id: int) -> List[UserContact]:

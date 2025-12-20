@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 const Sidebar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -24,28 +24,18 @@ const Sidebar = ({ isOpen, onClose }) => {
   };
 
   // Dynamic paths based on user role level
-  const dashboardPath = user?.role === 'KAPOLRI' ? '/admin/dashboard' : '/dashboard';
-  const basePath = user?.role === 'KAPOLRI' ? '/admin' : '/dashboard';
+  const dashboardPath = user?.role?.name === 'KAPOLRI' ? '/admin/dashboard' : '/dashboard';
+  const basePath = user?.role?.name === 'KAPOLRI' ? '/admin' : '/dashboard';
 
-  // Build menu items dynamically based on permissions
+  // Build menu items - SAME for ALL roles
   const getMenuItems = () => {
     const items = [
       { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
       { icon: ChartBarIcon, label: 'Dashboard', path: dashboardPath },
+      { icon: UsersIcon, label: 'User Management', path: `${basePath}/users` },
+      { icon: PhoneIcon, label: 'Contact Management', path: `${basePath}/contacts` },
+      { icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: `${basePath}/audit-logs` }
     ];
-
-    // Add permission-based menu items
-    if (user?.role?.permissions?.manage_users || user?.role === 'KAPOLRI') {
-      items.push({ icon: UsersIcon, label: 'User Management', path: `${basePath}/users` });
-    }
-
-    if (user?.role?.permissions?.manage_contacts || user?.role === 'KAPOLRI') {
-      items.push({ icon: PhoneIcon, label: 'Contact Management', path: `${basePath}/contacts` });
-    }
-
-    if (user?.role?.permissions?.view_audit_logs || user?.role === 'KAPOLRI') {
-      items.push({ icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: `${basePath}/audit-logs` });
-    }
 
     return items;
   };
@@ -110,7 +100,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                           <p className="text-sm font-medium text-slate-900 truncate">
                             {user?.full_name || user?.username}
                           </p>
-                          <Badge role={user?.role} variant="role" />
+                          <Badge role={user?.role?.name} variant="role" />
                         </div>
                       </div>
                     </div>

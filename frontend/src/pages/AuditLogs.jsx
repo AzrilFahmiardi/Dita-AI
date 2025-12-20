@@ -77,7 +77,7 @@ const AuditLogs = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
-        {hasPermission('export_data') && (
+        {hasPermission('export_audit_logs') && (
           <button
             onClick={handleExport}
             className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"

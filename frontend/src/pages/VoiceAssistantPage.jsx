@@ -61,7 +61,7 @@ const VoiceAssistantPage = () => {
                   {user?.full_name}
                 </p>
               </div>
-              <Badge role={user?.role} variant="role" />
+              <Badge role={user?.role?.name} variant="role" />
             </div>
           </div>
         </div>

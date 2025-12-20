@@ -18,17 +18,21 @@ def seed_roles(session):
                 "manage_users": True,
                 "send_whatsapp": True,
                 "manage_contacts": True,
-                "export_data": True
+                "view_audit_logs": True,
+                "export_audit_logs": True,
+                "edit_permissions": True
             }
         },
         {
             "name": "KAPOLDA",
             "level": 2,
             "permissions": {
-                "manage_users": False,
+                "manage_users": True,
                 "send_whatsapp": True,
                 "manage_contacts": True,
-                "export_data": True
+                "view_audit_logs": True,
+                "export_audit_logs": True,
+                "edit_permissions": False
             }
         },
         {
@@ -36,9 +40,11 @@ def seed_roles(session):
             "level": 3,
             "permissions": {
                 "manage_users": False,
-                "send_whatsapp": False,
+                "send_whatsapp": True,
                 "manage_contacts": False,
-                "export_data": False
+                "view_audit_logs": True,
+                "export_audit_logs": False,
+                "edit_permissions": False
             }
         }
     ]

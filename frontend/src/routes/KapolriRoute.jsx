@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 const KapolriRoute = ({ children }) => {
   const { user } = useAuth();
 
-  if (user?.role !== 'KAPOLRI') {
+  if (user?.role?.name !== 'KAPOLRI') {
     return <Navigate to="/unauthorized" replace />;
   }
 
