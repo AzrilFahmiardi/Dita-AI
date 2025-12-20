@@ -27,12 +27,28 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const hasPermission = (permission) => {
+    if (!user || !user.role) {
+      return false;
+    }
+    
+    // If permissions object doesn't exist or is empty, fallback to role-based check
+    // KAPOLRI (level 1) gets all permissions by default
+    if (!user.role.permissions || Object.keys(user.role.permissions).length === 0) {
+      console.warn('AuthContext: No permissions found, using role-based fallback');
+      return user.role.name === 'KAPOLRI' || user.role === 'KAPOLRI';
+    }
+    
+    return user.role.permissions[permission] === true;
+  };
+
   const value = {
     user,
     login,
     logout,
     isAuthenticated: !!user,
     loading,
+    hasPermission,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

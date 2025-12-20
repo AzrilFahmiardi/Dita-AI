@@ -15,31 +15,30 @@ def seed_roles(session):
             "name": "KAPOLRI",
             "level": 1,
             "permissions": {
-                "send_whatsapp": True,
-                "broadcast_all": True,
-                "view_all_messages": True,
                 "manage_users": True,
-                "view_analytics": True
+                "send_whatsapp": True,
+                "manage_contacts": True,
+                "export_data": True
             }
         },
         {
             "name": "KAPOLDA",
             "level": 2,
             "permissions": {
+                "manage_users": False,
                 "send_whatsapp": True,
-                "broadcast_regional": True,
-                "view_regional_messages": True,
-                "manage_regional_users": True,
-                "view_regional_analytics": True
+                "manage_contacts": True,
+                "export_data": True
             }
         },
         {
             "name": "KAPOLRES",
             "level": 3,
             "permissions": {
+                "manage_users": False,
                 "send_whatsapp": False,
-                "view_unit_messages": True,
-                "view_unit_analytics": True
+                "manage_contacts": False,
+                "export_data": False
             }
         }
     ]

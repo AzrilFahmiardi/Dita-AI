@@ -4,20 +4,26 @@ import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
-  FunnelIcon
+  FunnelIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
-import Badge from '../../components/common/Badge';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Card from '../../components/common/Card';
-import userService from '../../services/user.service';
-import UserFormModal from '../../components/forms/UserFormModal';
-import ConfirmDialog from '../../components/common/ConfirmDialog';
+import { useAuth } from '../contexts/AuthContext';
+import Button from '../components/common/Button';
+import Input from '../components/common/Input';
+import Badge from '../components/common/Badge';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import Card from '../components/common/Card';
+import userService from '../services/user.service';
+import roleService from '../services/role.service';
+import UserFormModal from '../components/forms/UserFormModal';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import RolePermissionModal from '../components/modals/RolePermissionModal';
 
 const UserManagement = () => {
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -26,10 +32,22 @@ const UserManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [selectedRole, setSelectedRole] = useState(null);
 
   useEffect(() => {
     fetchUsers();
+    fetchRoles();
   }, [roleFilter, statusFilter]);
+
+  const fetchRoles = async () => {
+    try {
+      const data = await roleService.getAllRoles();
+      setRoles(data);
+    } catch (error) {
+      console.error('Failed to fetch roles:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -94,6 +112,17 @@ const UserManagement = () => {
     }
   };
 
+  const handleEditPermissions = (role) => {
+    setSelectedRole(role);
+    setShowPermissionModal(true);
+  };
+
+  const handlePermissionsSaved = () => {
+    toast.success('Permissions updated successfully');
+    fetchRoles();
+    fetchUsers();
+  };
+
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,11 +157,52 @@ const UserManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
-        <Button onClick={handleCreateUser}>
-          <PlusIcon className="w-4 h-4" />
-          <span className="ml-2">Create User</span>
-        </Button>
+        {hasPermission('manage_users') && (
+          <Button onClick={handleCreateUser}>
+            <PlusIcon className="w-4 h-4" />
+            <span className="ml-2">Create User</span>
+          </Button>
+        )}
       </div>
+
+      <Card>
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Role Permissions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {roles.map((role) => (
+              <div
+                key={role.id}
+                className="border rounded-lg p-4 hover:border-blue-300 transition-colors"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-medium text-gray-900">{role.name}</h3>
+                    <p className="text-sm text-gray-600">Level {role.level}</p>
+                  </div>
+                  <button
+                    onClick={() => handleEditPermissions(role)}
+                    className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                    title="Edit Permissions"
+                  >
+                    <Cog6ToothIcon className="w-4 h-4" />
+                    <span>Edit</span>
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {role.permissions && Object.entries(role.permissions).map(([key, value]) => (
+                    <div key={key} className="flex items-center text-sm">
+                      <span className={`w-2 h-2 rounded-full mr-2 ${value ? 'bg-green-500' : 'bg-gray-300'}`} />
+                      <span className={value ? 'text-gray-700' : 'text-gray-400'}>
+                        {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <div className="space-y-4">
@@ -249,20 +319,24 @@ const UserManagement = () => {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEditUser(user)}
-                          className="p-1 text-blue-600 hover:text-blue-800"
-                          title="Edit user"
-                        >
-                          <PencilIcon className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(user)}
-                          className="p-1 text-red-600 hover:text-red-800"
-                          title="Delete user"
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </button>
+                        {hasPermission('manage_users') && (
+                          <button
+                            onClick={() => handleEditUser(user)}
+                            className="p-1 text-blue-600 hover:text-blue-800"
+                            title="Edit user"
+                          >
+                            <PencilIcon className="w-5 h-5" />
+                          </button>
+                        )}
+                        {hasPermission('manage_users') && (
+                          <button
+                            onClick={() => handleDeleteClick(user)}
+                            className="p-1 text-red-600 hover:text-red-800"
+                            title="Delete user"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -301,6 +375,17 @@ const UserManagement = () => {
             setUserToDelete(null);
           }}
           danger
+        />
+      )}
+
+      {showPermissionModal && (
+        <RolePermissionModal
+          role={selectedRole}
+          onClose={() => {
+            setShowPermissionModal(false);
+            setSelectedRole(null);
+          }}
+          onSuccess={handlePermissionsSaved}
         />
       )}
     </div>

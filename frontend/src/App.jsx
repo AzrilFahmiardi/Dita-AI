@@ -2,13 +2,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './routes/ProtectedRoute';
+import RootRedirect from './routes/RootRedirect';
 import LoginPage from './pages/LoginPage';
 import VoiceAssistantPage from './pages/VoiceAssistantPage';
 import DashboardLayout from './components/layout/DashboardLayout';
-import KapolriDashboard from './pages/kapolri/Dashboard';
-import UserManagement from './pages/kapolri/UserManagement';
-import ContactManagement from './pages/kapolri/ContactManagement';
-import AuditLogs from './pages/kapolri/AuditLogs';
+import DashboardPage from './pages/DashboardPage';
+import UserManagement from './pages/UserManagement';
+import ContactManagement from './pages/ContactManagement';
+import AuditLogs from './pages/AuditLogs';
 
 function App() {
   return (
@@ -19,16 +20,27 @@ function App() {
           
           <Route path="/assistant" element={<ProtectedRoute><VoiceAssistantPage /></ProtectedRoute>} />
           
+          {/* Admin routes - KAPOLRI only (level 1) */}
           <Route element={<ProtectedRoute allowedRoles={['KAPOLRI']} />}>
             <Route element={<DashboardLayout />}>
-              <Route path="/kapolri/dashboard" element={<KapolriDashboard />} />
-              <Route path="/kapolri/users" element={<UserManagement />} />
-              <Route path="/kapolri/contacts" element={<ContactManagement />} />
-              <Route path="/kapolri/audit-logs" element={<AuditLogs />} />
+              <Route path="/admin/dashboard" element={<DashboardPage />} />
+              <Route path="/admin/users" element={<UserManagement />} />
+              <Route path="/admin/contacts" element={<ContactManagement />} />
+              <Route path="/admin/audit-logs" element={<AuditLogs />} />
             </Route>
           </Route>
 
-          <Route path="/" element={<Navigate to="/assistant" replace />} />
+          {/* Dashboard routes - All other roles (level 2+) */}
+          <Route element={<ProtectedRoute allowedRoles={['KAPOLDA', 'KAPOLRES']} />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard/users" element={<UserManagement />} />
+              <Route path="/dashboard/contacts" element={<ContactManagement />} />
+              <Route path="/dashboard/audit-logs" element={<AuditLogs />} />
+            </Route>
+          </Route>
+
+          <Route path="/" element={<RootRedirect />} />
           
           <Route path="/unauthorized" element={
             <div className="min-h-screen flex items-center justify-center bg-slate-50">

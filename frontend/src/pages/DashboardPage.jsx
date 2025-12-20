@@ -8,17 +8,23 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Card from '../../components/common/Card';
-import Button from '../../components/common/Button';
-import userService from '../../services/user.service';
-import contactService from '../../services/contact.service';
-import auditService from '../../services/audit.service';
+import { useAuth } from '../contexts/AuthContext';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import Card from '../components/common/Card';
+import Button from '../components/common/Button';
+import userService from '../services/user.service';
+import contactService from '../services/contact.service';
+import auditService from '../services/audit.service';
 import { formatDistanceToNow } from 'date-fns';
 
-const KapolriDashboard = () => {
+const DashboardPage = () => {
+  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  
+  // Determine base path based on user role
+  const basePath = user?.role === 'KAPOLRI' ? '/admin' : '/dashboard';
+  
   const [stats, setStats] = useState({
     totalUsers: 0,
     usersByRole: { KAPOLRI: 0, KAPOLDA: 0, KAPOLRES: 0 },
@@ -36,11 +42,13 @@ const KapolriDashboard = () => {
     try {
       setLoading(true);
       
-      const [users, contacts, activities] = await Promise.all([
+      const [users, contacts, activitiesResponse] = await Promise.all([
         userService.getUsers().catch(err => { console.error('Failed to fetch users:', err); return []; }),
         contactService.getContacts().catch(err => { console.error('Failed to fetch contacts:', err); return []; }),
-        auditService.getAuditLogs({ limit: 10 }).catch(err => { console.error('Failed to fetch audit logs:', err); return []; })
+        auditService.getAuditLogs({ limit: 10 }).catch(err => { console.error('Failed to fetch audit logs:', err); return { items: [] }; })
       ]);
+
+      const activities = activitiesResponse?.items || activitiesResponse || [];
 
       console.log('Dashboard data loaded:', { users: users.length, contacts: contacts.length, activities: activities.length });
 
@@ -88,7 +96,7 @@ const KapolriDashboard = () => {
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => navigate('/kapolri/users')}
+          onClick={() => navigate(`${basePath}/users`)}
         >
           <PlusIcon className="w-4 h-4" />
           <span className="ml-2">Create User</span>
@@ -96,7 +104,7 @@ const KapolriDashboard = () => {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => navigate('/kapolri/contacts')}
+          onClick={() => navigate(`${basePath}/contacts`)}
         >
           <PlusIcon className="w-4 h-4" />
           <span className="ml-2">Add Contact</span>
@@ -106,7 +114,7 @@ const KapolriDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate('/kapolri/users')}
+          onClick={() => navigate(`${basePath}/users`)}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -134,7 +142,7 @@ const KapolriDashboard = () => {
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate('/kapolri/contacts')}
+          onClick={() => navigate(`${basePath}/contacts`)}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -159,7 +167,7 @@ const KapolriDashboard = () => {
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate('/kapolri/audit-logs')}
+          onClick={() => navigate(`${basePath}/audit-logs`)}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -209,7 +217,7 @@ const KapolriDashboard = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/kapolri/audit-logs')}
+            onClick={() => navigate(`${basePath}/audit-logs`)}
           >
             View All
           </Button>
@@ -273,4 +281,4 @@ const KapolriDashboard = () => {
   );
 };
 
-export default KapolriDashboard;
+export default DashboardPage;

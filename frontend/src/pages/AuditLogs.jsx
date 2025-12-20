@@ -4,15 +4,18 @@ import {
   ArrowPathIcon,
   ArrowDownTrayIcon 
 } from '@heroicons/react/24/outline';
-import useAuditLogs from '../../hooks/useAuditLogs';
-import AuditLogTable from '../../components/tables/AuditLogTable';
+import { useAuth } from '../contexts/AuthContext';
+import useAuditLogs from '../hooks/useAuditLogs';
+import AuditLogTable from '../components/tables/AuditLogTable';
 import toast from 'react-hot-toast';
 
 /**
- * Audit Logs page for KAPOLRI
- * View and filter all system audit logs with export functionality
+ * Audit Logs page
+ * View and filter system audit logs with export functionality
+ * Data is scoped based on user role and permissions
  */
 const AuditLogs = () => {
+  const { hasPermission } = useAuth();
   const { logs, loading, pagination, fetchLogs, exportLogs } = useAuditLogs();
   const [filters, setFilters] = useState({
     action: '',
@@ -73,20 +76,16 @@ const AuditLogs = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Audit Logs</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            View and monitor all system activities
-          </p>
-        </div>
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-        >
-          <ArrowDownTrayIcon className="h-4 w-4" />
-          <span>Export CSV</span>
-        </button>
+      <div className="flex items-center justify-end">
+        {hasPermission('export_data') && (
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            <span>Export CSV</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm">

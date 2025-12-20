@@ -37,37 +37,35 @@ const DashboardLayout = () => {
       { name: 'Voice Assistant', path: '/assistant', icon: HomeIcon }
     ];
 
-    if (user.role === 'KAPOLRI') {
-      console.log('DashboardLayout: Returning KAPOLRI menu items');
-      return [
-        ...baseItems,
-        { name: 'Dashboard', path: '/kapolri/dashboard', icon: HomeIcon },
-        { name: 'User Management', path: '/kapolri/users', icon: UsersIcon },
-        { name: 'Contact Management', path: '/kapolri/contacts', icon: PhoneIcon },
-        { name: 'Audit Logs', path: '/kapolri/audit-logs', icon: ClipboardDocumentListIcon }
-      ];
-    } else if (user.role === 'KAPOLDA') {
-      console.log('DashboardLayout: Returning KAPOLDA menu items');
-      return [
-        ...baseItems,
-        { name: 'Dashboard', path: '/kapolda/dashboard', icon: HomeIcon },
-        { name: 'Users', path: '/kapolda/users', icon: UsersIcon },
-        { name: 'Contacts', path: '/kapolda/contacts', icon: PhoneIcon },
-        { name: 'Audit Logs', path: '/kapolda/audit-logs', icon: ClipboardDocumentListIcon }
-      ];
-    } else if (user.role === 'KAPOLRES') {
-      console.log('DashboardLayout: Returning KAPOLRES menu items');
-      return [
-        ...baseItems,
-        { name: 'Dashboard', path: '/kapolres/dashboard', icon: HomeIcon },
-        { name: 'Profile', path: '/kapolres/profile', icon: UserCircleIcon },
-        { name: 'Contacts', path: '/kapolres/contacts', icon: PhoneIcon },
-        { name: 'Activity Logs', path: '/kapolres/activity-logs', icon: ClipboardDocumentListIcon }
-      ];
+    // Determine dashboard path based on role
+    const dashboardPath = user.role === 'KAPOLRI' ? '/admin/dashboard' : '/dashboard';
+    const basePath = user.role === 'KAPOLRI' ? '/admin' : '/dashboard';
+
+    // Build menu items dynamically based on permissions
+    const menuItems = [
+      ...baseItems,
+      { name: 'Dashboard', path: dashboardPath, icon: HomeIcon },
+    ];
+
+    // Add User Management if user has permission
+    if (user.role?.permissions?.manage_users || user.role === 'KAPOLRI') {
+      menuItems.push({ name: 'User Management', path: `${basePath}/users`, icon: UsersIcon });
     }
 
-    console.log('DashboardLayout: No matching role, returning base items only');
-    return baseItems;
+    // Add Contact Management if user has permission
+    if (user.role?.permissions?.manage_contacts || user.role === 'KAPOLRI') {
+      menuItems.push({ name: 'Contact Management', path: `${basePath}/contacts`, icon: PhoneIcon });
+    }
+
+    // Add Audit Logs (all roles can view, but scoped)
+    menuItems.push({ 
+      name: 'Audit Logs', 
+      path: `${basePath}/audit-logs`, 
+      icon: ClipboardDocumentListIcon 
+    });
+
+    console.log('DashboardLayout: Generated menu items:', menuItems);
+    return menuItems;
   };
 
   const menuItems = getMenuItems();

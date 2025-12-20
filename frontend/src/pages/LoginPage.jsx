@@ -66,8 +66,11 @@ const LoginPage = () => {
       if (response && response.access_token) {
         toast.success('Login successful! Redirecting...');
         
+        // Always redirect to assistant page after login (default landing page)
+        const redirectPath = '/assistant';
+        
         setTimeout(() => {
-          window.location.href = '/assistant';
+          window.location.href = redirectPath;
         }, 500);
       } else {
         toast.error('Login failed: Invalid response from server');

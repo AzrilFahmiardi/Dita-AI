@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from broadcaster import broadcaster
 from database import get_db
-from database.models import User, AuditLog, WhatsAppContact
+from database.models import User, AuditLog, WhatsAppContact, Role
 from auth.security import verify_password, create_access_token, create_refresh_token, verify_token
 from auth.dependencies import get_current_active_user, require_permission, require_role_level
 from auth.schemas import (
@@ -697,6 +697,62 @@ async def get_user_audit_logs(
     
     logs = AuditService.get_user_logs(db, user_id, skip, limit)
     return logs
+
+
+# Role Endpoints
+@app.get("/api/roles", response_model=List[RoleSchema])
+async def get_all_roles(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all roles with their permissions"""
+    roles = db.query(Role).order_by(Role.level).all()
+    return roles
+
+
+@app.put("/api/roles/{role_id}/permissions", dependencies=[Depends(require_role_level(1))])
+async def update_role_permissions(
+    role_id: int,
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update role permissions (KAPOLRI only)"""
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    permissions = request.get("permissions", {})
+    
+    # Validate permission keys
+    valid_permissions = {"manage_users", "send_whatsapp", "manage_contacts", "export_data"}
+    for key in permissions.keys():
+        if key not in valid_permissions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid permission: {key}. Valid permissions: {valid_permissions}"
+            )
+    
+    # Update permissions
+    role.permissions = permissions
+    db.commit()
+    db.refresh(role)
+    
+    # Log the action
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        action="update",
+        resource="role",
+        details={
+            "role_id": role_id,
+            "role_name": role.name,
+            "permissions": permissions
+        }
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"message": "Permissions updated successfully", "role": role}
 
 
 @app.websocket("/ws/dashboard")

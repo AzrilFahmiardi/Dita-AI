@@ -8,15 +8,17 @@ import {
   PlusIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import Button from '../../components/common/Button';
-import Card from '../../components/common/Card';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
-import ConfirmDialog from '../../components/common/ConfirmDialog';
-import contactService from '../../services/contact.service';
-import ContactFormModal from '../../components/forms/ContactFormModal';
-import AssignContactModal from '../../components/forms/AssignContactModal';
+import { useAuth } from '../contexts/AuthContext';
+import Button from '../components/common/Button';
+import Card from '../components/common/Card';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ConfirmDialog from '../components/common/ConfirmDialog';
+import contactService from '../services/contact.service';
+import ContactFormModal from '../components/forms/ContactFormModal';
+import AssignContactModal from '../components/forms/AssignContactModal';
 
 const ContactManagement = () => {
+  const { hasPermission } = useAuth();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,10 +120,12 @@ const ContactManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
-        <Button onClick={handleCreateContact}>
-          <PlusIcon className="w-4 h-4" />
-          <span className="ml-2">Add Contact</span>
-        </Button>
+        {hasPermission('manage_contacts') && (
+          <Button onClick={handleCreateContact}>
+            <PlusIcon className="w-4 h-4" />
+            <span className="ml-2">Add Contact</span>
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -214,27 +218,33 @@ const ContactManagement = () => {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleAssignContact(contact)}
-                          className="p-1 text-green-600 hover:text-green-800"
-                          title="Assign to users"
-                        >
-                          <UserGroupIcon className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleEditContact(contact)}
-                          className="p-1 text-blue-600 hover:text-blue-800"
-                          title="Edit contact"
-                        >
-                          <PencilIcon className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(contact)}
-                          className="p-1 text-red-600 hover:text-red-800"
-                          title="Delete contact"
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </button>
+                        {hasPermission('manage_contacts') && (
+                          <button
+                            onClick={() => handleAssignContact(contact)}
+                            className="p-1 text-green-600 hover:text-green-800"
+                            title="Assign to users"
+                          >
+                            <UserGroupIcon className="w-5 h-5" />
+                          </button>
+                        )}
+                        {hasPermission('manage_contacts') && (
+                          <button
+                            onClick={() => handleEditContact(contact)}
+                            className="p-1 text-blue-600 hover:text-blue-800"
+                            title="Edit contact"
+                          >
+                            <PencilIcon className="w-5 h-5" />
+                          </button>
+                        )}
+                        {hasPermission('manage_contacts') && (
+                          <button
+                            onClick={() => handleDeleteClick(contact)}
+                            className="p-1 text-red-600 hover:text-red-800"
+                            title="Delete contact"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

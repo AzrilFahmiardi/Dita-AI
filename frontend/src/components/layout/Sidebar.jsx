@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, HomeIcon, ChartBarIcon, UsersIcon, PhoneIcon, ClipboardDocumentListIcon, ArrowRightOnRectangleIcon, UserIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, HomeIcon, ChartBarIcon, UsersIcon, PhoneIcon, ClipboardDocumentListIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Badge from '../common/Badge';
@@ -23,31 +23,34 @@ const Sidebar = ({ isOpen, onClose }) => {
     onClose();
   };
 
-  const menuItems = {
-    KAPOLRI: [
+  // Dynamic paths based on user role level
+  const dashboardPath = user?.role === 'KAPOLRI' ? '/admin/dashboard' : '/dashboard';
+  const basePath = user?.role === 'KAPOLRI' ? '/admin' : '/dashboard';
+
+  // Build menu items dynamically based on permissions
+  const getMenuItems = () => {
+    const items = [
       { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
-      { icon: ChartBarIcon, label: 'Dashboard', path: '/kapolri/dashboard' },
-      { icon: UsersIcon, label: 'User Management', path: '/kapolri/users' },
-      { icon: PhoneIcon, label: 'Contact Management', path: '/kapolri/contacts' },
-      { icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: '/kapolri/audit-logs' },
-    ],
-    KAPOLDA: [
-      { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
-      { icon: ChartBarIcon, label: 'Dashboard', path: '/kapolda/dashboard' },
-      { icon: UsersIcon, label: 'Users', path: '/kapolda/users' },
-      { icon: PhoneIcon, label: 'Contact Management', path: '/kapolda/contacts' },
-      { icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: '/kapolda/audit-logs' },
-    ],
-    KAPOLRES: [
-      { icon: HomeIcon, label: 'Voice Assistant', path: '/assistant' },
-      { icon: ChartBarIcon, label: 'Dashboard', path: '/kapolres/dashboard' },
-      { icon: UserIcon, label: 'Profile', path: '/kapolres/profile' },
-      { icon: PhoneIcon, label: 'Contacts', path: '/kapolres/contacts' },
-      { icon: ClipboardDocumentListIcon, label: 'Activity Logs', path: '/kapolres/activity-logs' },
-    ],
+      { icon: ChartBarIcon, label: 'Dashboard', path: dashboardPath },
+    ];
+
+    // Add permission-based menu items
+    if (user?.role?.permissions?.manage_users || user?.role === 'KAPOLRI') {
+      items.push({ icon: UsersIcon, label: 'User Management', path: `${basePath}/users` });
+    }
+
+    if (user?.role?.permissions?.manage_contacts || user?.role === 'KAPOLRI') {
+      items.push({ icon: PhoneIcon, label: 'Contact Management', path: `${basePath}/contacts` });
+    }
+
+    if (user?.role?.permissions?.view_audit_logs || user?.role === 'KAPOLRI') {
+      items.push({ icon: ClipboardDocumentListIcon, label: 'Audit Logs', path: `${basePath}/audit-logs` });
+    }
+
+    return items;
   };
 
-  const items = menuItems[user?.role] || [];
+  const items = getMenuItems();
 
   const handleNavigate = (path) => {
     navigate(path);
